@@ -1,0 +1,20 @@
+using Invora.Contracts.Retail;
+using Invora.Domain.Modules.Retail;
+using Invora.Infrastructure.Modules.Retail;
+using Microsoft.EntityFrameworkCore;
+namespace Invora.Infrastructure.Modules.Customers;
+public sealed class FollowUpService(RetailOperations r)
+{
+    public Task<Guid> RecordAsync(FollowUpRequest request,string key,CancellationToken ct)=>r.ExecuteAsync("customer-follow-up",key,request,async()=>{
+        await r.BranchAsync(request.BranchId,"customers.manage",ct);await r.PermissionAsync("customers.credit.view",ct);await r.PartyAsync(request.CustomerId,PartyKind.Customer,ct);
+        RetailOperations.Check(request.Kind is "Promise" or "Reminder" or "Call" or "Note" or "ClearPromise","Choose a follow-up type.");RetailOperations.Text(request.Note,"Conversation / reminder note");
+        RetailOperations.Check(request.Kind!="Promise"||request.PromiseDate is not null,"Enter the promised payment date.");RetailOperations.Check(request.Kind=="Promise"||request.PromiseDate is null,"A payment date belongs to a promise entry.");
+        if(request.Amount is decimal amount)RetailOperations.Money(amount,true);
+        var entry=new PaymentFollowUp{BranchId=request.BranchId,CustomerId=request.CustomerId,ActorId=r.Actor,Kind=request.Kind,Note=request.Note.Trim(),PromiseDate=request.PromiseDate,NextContactDate=request.NextContactDate,Amount=request.Amount};r.Db.Add(entry);r.Audit("CUSTOMER_FOLLOW_UP",entry.Id,new{request.CustomerId,request.Kind,request.PromiseDate,request.NextContactDate,request.Amount});return entry.Id;
+    },ct);
+    public async Task<object> ListAsync(Guid customer,Guid branch,int page,int size,CancellationToken ct){await r.BranchAsync(branch,"customers.credit.view",ct);await r.PartyAsync(customer,PartyKind.Customer,ct);RetailOperations.Page(page,size);var q=r.Db.Set<PaymentFollowUp>().AsNoTracking().Where(x=>x.BranchId==branch&&x.CustomerId==customer);var business=await r.Db.Businesses.SingleAsync(ct);var settings=await r.SettingsAsync(ct);return new{shop=new{name=business.TradeName,phone=settings.Phone},promiseDate=await q.Where(x=>x.Kind=="Promise"||x.Kind=="ClearPromise").OrderByDescending(x=>x.CreatedAtUtc).ThenByDescending(x=>x.Id).Select(x=>x.PromiseDate).FirstOrDefaultAsync(ct),items=await q.OrderByDescending(x=>x.CreatedAtUtc).ThenByDescending(x=>x.Id).Skip((page-1)*size).Take(size).ToArrayAsync(ct),totalItems=await q.LongCountAsync(ct),page,pageSize=size};}
+    public async Task<CustomerStatement> StatementAsync(Guid customer,Guid branch,DateOnly? from,DateOnly? to,CancellationToken ct)
+    {
+        await r.BranchAsync(branch,"customers.credit.view",ct);await r.PermissionAsync("reports.export",ct);await using var snapshot=await r.Db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead,ct);var party=await r.PartyAsync(customer,PartyKind.Customer,ct);var end=to??await r.TodayAsync(ct);var start=from??new DateOnly(end.Year,end.Month,1);RetailOperations.Check(start<=end,"Choose a valid statement period.");var q=r.Db.Set<LedgerEntry>().AsNoTracking().Where(x=>x.BranchId==branch&&x.PartyId==customer);var opening=await q.Where(x=>x.BusinessDate<start).SumAsync(x=>x.Debit-x.Credit,ct);var period=q.Where(x=>x.BusinessDate>=start&&x.BusinessDate<=end);RetailOperations.Check(await period.CountAsync(ct)<=10000,"Choose a shorter period to download this statement.");var entries=await period.OrderBy(x=>x.BusinessDate).ThenBy(x=>x.CreatedAtUtc).ThenBy(x=>x.Id).ToArrayAsync(ct);var running=opening;var rows=entries.Select(x=>{running+=x.Debit-x.Credit;return new StatementRow(x.BusinessDate,x.Kind,x.Note,x.Debit,x.Credit,running);}).ToArray();var settings=await r.SettingsAsync(ct);var shop=await r.Db.Businesses.SingleAsync(ct);var trade=await q.Where(x=>x.BusinessDate<=end&&!x.Kind.StartsWith("LenDen")).SumAsync(x=>x.Debit-x.Credit,ct);var independent=await q.Where(x=>x.BusinessDate<=end&&x.Kind.StartsWith("LenDen")).SumAsync(x=>x.Debit-x.Credit,ct);return new(shop.TradeName,settings.Address,party.Name,party.Phone,party.AlternatePhone,start,end,opening,running,trade,independent,rows);
+    }
+}

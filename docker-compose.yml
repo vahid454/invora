@@ -1,0 +1,58 @@
+name: invora
+x-api: &api
+  image: invora-api:${INVORA_TAG:-local}
+  build: .
+  environment:
+    ConnectionStrings__Invora: Host=db;Database=${POSTGRES_DB:?Required};Username=${POSTGRES_USER:?Required};Password=${POSTGRES_PASSWORD:?Required}
+    Auth__SigningKey: ${INVORA_SIGNING_KEY:?Required}
+    Auth__BootstrapKey: ${INVORA_BOOTSTRAP_KEY:?Required for initial setup}
+    Auth__BrowserOrigin: ${INVORA_BROWSER_ORIGIN:?Required}
+    Licensing__Required: ${INVORA_LICENSE_REQUIRED:-false}
+    Licensing__PublicKey: ${INVORA_LICENSE_PUBLIC_KEY:-}
+    ASPNETCORE_ENVIRONMENT: ${INVORA_ENVIRONMENT:-Production}
+    Proxy__TrustedAddress: 172.30.0.4
+  volumes: ["documents:/var/lib/invora/files"]
+  networks: [internal]
+services:
+  db:
+    image: postgres:18.6
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Required}
+      POSTGRES_USER: ${POSTGRES_USER:?Required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Required}
+    volumes: ["database:/var/lib/postgresql"]
+    networks: [internal]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    <<: *api
+    entrypoint: [/app/migrate]
+    profiles: [tools]
+    depends_on:
+      db: {condition: service_healthy}
+  api:
+    <<: *api
+    depends_on:
+      db: {condition: service_healthy}
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+  web:
+    image: invora-web:${INVORA_TAG:-local}
+    build: invora-web
+    ports: ["127.0.0.1:${INVORA_HTTP_PORT:-8080}:8080"]
+    networks:
+      internal:
+        ipv4_address: 172.30.0.4
+    depends_on: [api]
+    restart: unless-stopped
+networks:
+  internal:
+    ipam:
+      config: [{subnet: 172.30.0.0/24}]
+volumes:
+  database:
+  documents:

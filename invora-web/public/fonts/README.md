@@ -1,0 +1,1 @@
+DM Sans and Manrope variable Latin fonts, obtained from the Google Fonts CSS API on 6 October 2026. Each font is distributed under its accompanying SIL Open Font License. Sources: https://github.com/google/fonts/tree/main/ofl/dmsans and https://github.com/google/fonts/tree/main/ofl/manrope . These local files remove external font requests from builds and the counter interface.

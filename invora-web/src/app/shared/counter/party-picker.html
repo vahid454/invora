@@ -1,0 +1,29 @@
+<div class="party-picker">
+  @if(!compact()||!selectedParty()){
+  <label>Find {{kind()}}<input type="search" [formControl]="search" placeholder="Mobile number or name" [attr.aria-label]="'Find '+kind()" autocomplete="off" (keydown.enter)="searchNow($event)"></label>
+  @if(search.value.trim()) {
+    <div class="contact-results" [attr.aria-label]="'Matching '+kind()+'s'" aria-live="polite">
+      @if(loading()){<p class="small muted" role="status">Looking up contacts…</p>}
+      @else {
+        @for(party of results();track party.id){<button type="button" class="contact-result" (click)="select(party)"><span><strong>{{party.name}}</strong><small>{{party.phone}}{{party.alternatePhone?' / '+party.alternatePhone:''}}</small></span><span>Select →</span></button>}
+        @empty{<p class="small muted">No matching {{kind()}}. Add them here to continue.</p>}
+      }
+      @if(total()>25){<div class="pagination"><button type="button" class="quiet" [disabled]="page===1||loading()" (click)="page=page-1;load()">← Previous</button><span>Page {{page}}</span><button type="button" class="quiet" [disabled]="page*25>=total()||loading()" (click)="page=page+1;load()">Next →</button></div>}
+    </div>
+  }
+  }
+  @if(selectedParty()){<div class="selected-contact"><span><small>Selected {{kind()}}</small><strong>{{selectedParty()!.name}}</strong><small>{{selectedParty()!.phone}}{{selectedParty()!.alternatePhone?' / '+selectedParty()!.alternatePhone:''}}</small></span><button type="button" class="text-link" (click)="clear()">Change {{kind()}}</button></div>}
+  @if(!compact()||!selectedParty()){
+  <label>{{kind()==='supplier'?'Supplier':'Customer'}}<select [formControl]="selection" (change)="choose($event)"><option value="">Choose {{kind()}}</option>@for(party of options();track party.id){<option [value]="party.id">{{party.name}} · {{party.phone}}</option>}</select></label>
+  @if(auth.can(kind()==='supplier'?'supplier.manage':'customers.manage')){<button type="button" class="text-link" (click)="openCreate()">+ New {{kind()}}</button>}
+  }
+  <p class="error" role="alert">{{error()}}</p>
+</div>
+@if(creating()){
+  <invora-modal [title]="'New '+kind()" [busy]="busy()" (closed)="creating.set(false)">
+    <p class="muted modal-intro">Save this contact and continue right where you are.</p>
+    <fieldset [formGroup]="form" class="plain-fieldset"><div class="form-grid"><label>Name<input formControlName="name" autocomplete="name" maxlength="200" required></label><label>Mobile number<input formControlName="phone" type="tel" autocomplete="tel" maxlength="20" required></label></div><label>Second mobile number (optional)<input formControlName="alternatePhone" type="tel" maxlength="20" placeholder="Alternate contact number"></label><details><summary>Address & business details (optional)</summary><label>Address<textarea formControlName="address" rows="2"></textarea></label><div class="form-grid"><label>State<select formControlName="stateCode"><option value="">Shop default / not specified</option>@for(state of states();track state.code){<option [value]="state.code">{{state.name}} · {{state.code}}</option>}</select></label><label>GSTIN<input formControlName="gstin" maxlength="15" (change)="gstChanged()"></label></div><label>Email<input formControlName="email" type="email"></label></details></fieldset>
+    <p class="error" role="alert">{{createError()}}</p>
+    <div class="form-footer"><button type="button" class="secondary" [disabled]="busy()" (click)="creating.set(false)">Cancel</button><button type="button" class="primary" [disabled]="busy()||form.invalid" (click)="save()">{{busy()?'Saving…':'Save & select '+kind()}}</button></div>
+  </invora-modal>
+}

@@ -1,0 +1,39 @@
+name: Verify Invora
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify-macos-launcher:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Verify Mac launcher with isolated dependencies
+        run: bash scripts/test-macos.sh
+      - name: Build and verify universal Mac installer
+        run: python3 scripts/package-macos.py
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: invora-web/package-lock.json
+      - run: dotnet restore Invora.sln --locked-mode
+      - name: Verify local launcher logic with isolated dependencies
+        shell: pwsh
+        run: |
+          $env:INVORA_TEST_PWSH = (Get-Command pwsh).Source
+          python3 -m unittest discover -s tests -p 'test_local_launcher_checks.py' -v
+          exit $LASTEXITCODE
+      - run: dotnet test Invora.sln --no-restore --configuration Release
+      - run: dotnet tool restore
+      - run: dotnet ef migrations has-pending-model-changes --project src/Invora.Infrastructure
+      - run: npm ci && npm test && npm run build
+        working-directory: invora-web
+      - run: docker build -t invora-api:ci .
+      - run: docker build -t invora-web:ci invora-web

@@ -1,0 +1,15 @@
+import {test,expect} from '@playwright/test';
+import {readFileSync} from 'node:fs';
+import {sign,constants,randomUUID} from 'node:crypto';
+import {ownerSession} from './session';
+test.skip(process.env['INVORA_LICENSE_E2E']!=='1','Separate acceptance run requires licensing enabled on its isolated API.');
+test('owner activates a signed shop licence and read-only gate opens without replacing data',async({page,request})=>{
+ const session=await ownerSession(request,{tradeName:'Isolated Counter Test Store',branchCode:'MAIN',branchName:'Test counter',ownerLogin:'browser-owner',ownerName:'Test Owner',password:'Browser-test-password-2026'}),headers={Authorization:'Bearer '+session.accessToken};
+ const before=await(await request.get('/api/v1/license',{headers})).json();expect(before.required).toBe(true);expect(before.canWrite).toBe(false);
+ const blocked=await request.post('/api/v1/brands',{headers:{...headers,'Idempotency-Key':randomUUID()},data:{name:'License fixture blocked'}});expect(blocked.status()).toBe(402);
+ await page.goto('/login');await page.getByLabel('Login',{exact:true}).fill('browser-owner');await page.getByLabel('Password',{exact:true}).fill('Browser-test-password-2026');await page.getByRole('button',{name:'Sign in →'}).click();await expect(page).toHaveURL(/\/$/);await expect(page.locator('.license-banner')).toContainText('activation');await page.goto('/license');await expect(page.getByLabel('Shop ID',{exact:true})).toHaveValue(before.businessId);
+ const today=new Date().toISOString().slice(0,10);const claims={version:1,licenseId:randomUUID(),businessId:before.businessId,customerName:'Synthetic licensed shop',plan:'Retail',startsOn:today,expiresOn:new Date(Date.now()+30*86400000).toISOString().slice(0,10),graceDays:7};const bytes=Buffer.from(JSON.stringify(claims));const signature=sign('sha256',bytes,{key:readFileSync(process.env['INVORA_LICENSE_E2E_KEY']!),padding:constants.RSA_PKCS1_PSS_PADDING,saltLength:constants.RSA_PSS_SALTLEN_DIGEST});const key='INVORA1.'+bytes.toString('base64url')+'.'+signature.toString('base64url');
+ await page.getByLabel('Licence key',{exact:true}).fill('INVORA1.invalid.key');await page.getByRole('button',{name:'Activate licence',exact:true}).click();await expect(page.locator('p.error')).toContainText('signature');
+ await page.getByLabel('Licence key',{exact:true}).fill(key);await page.getByRole('button',{name:'Activate licence',exact:true}).click();await expect(page.locator('p.success')).toContainText('verified');await expect(page.locator('.license-summary .badge')).toHaveText('Active');await expect(page.locator('.license-banner')).toHaveCount(0);await page.screenshot({path:'../artifacts/shop-license-activation.png',fullPage:true});
+ const permitted=await request.post('/api/v1/brands',{headers:{...headers,'Idempotency-Key':randomUUID()},data:{name:'License fixture allowed'}});expect(permitted.ok()).toBeTruthy();expect((await(await request.get('/api/v1/license',{headers})).json()).businessId).toBe(before.businessId);
+});

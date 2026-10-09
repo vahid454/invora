@@ -1,0 +1,11 @@
+services:
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Invora: Host=db;Database=${POSTGRES_DB:?Required};Username=invora_runtime;Password=${INVORA_RUNTIME_PASSWORD:?Required}
+  web:
+    ports: !override ["80:8080", "443:8443"]
+    volumes:
+      - ./deployment/nginx-tls.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${INVORA_TLS_DIRECTORY:?Directory containing fullchain.pem and privkey.pem}:/etc/invora-tls:ro
+      - ${INVORA_ACME_DIRECTORY:?ACME webroot directory}:/var/www/acme:ro

@@ -1,0 +1,43 @@
+using Microsoft.AspNetCore.HttpOverrides;
+using System.Net;
+using Invora.Api.Modules.Retail;
+using Invora.Api.Authorization;
+using Invora.Api.Modules.Identity;
+using Invora.Api.Health;
+using Invora.Api.Middleware;
+using Invora.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
+using Serilog;
+var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(context.Configuration).WriteTo.Console());
+builder.Services.Configure<ForwardedHeadersOptions>(o=>{o.ForwardedHeaders=ForwardedHeaders.XForwardedFor;var trusted=builder.Configuration["Proxy:TrustedAddress"];if(!string.IsNullOrEmpty(trusted))o.KnownProxies.Add(IPAddress.Parse(trusted));});
+builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context => context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier);
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddDbContext<InvoraDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("Invora") ?? throw new InvalidOperationException("ConnectionStrings:Invora is required.")));
+builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(o=>o.MapType<decimal>(()=>new Microsoft.OpenApi.OpenApiSchema{Type=Microsoft.OpenApi.JsonSchemaType.String,Pattern=@"^-?[0-9]+(?:\.[0-9]+)?$"}));
+builder.AddInvoraIdentity();
+builder.Services.AddRetail();
+var app = builder.Build();
+app.UseForwardedHeaders();
+app.UseExceptionHandler();
+app.UseSerilogRequestLogging();
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api")) context.Response.Headers.CacheControl = "no-store";
+    await next(context);
+});
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseMiddleware<ShopLicenseMiddleware>();
+app.MapIdentityEndpoints();
+app.MapRetail();
+if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
+app.Run();
+public partial class Program;

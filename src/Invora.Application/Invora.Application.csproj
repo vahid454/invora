@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="../Invora.Domain/Invora.Domain.csproj" /><ProjectReference Include="../Invora.Contracts/Invora.Contracts.csproj" /><PackageReference Include="FluentValidation" /></ItemGroup></Project>

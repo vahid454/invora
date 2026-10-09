@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><AssemblyName>InvoraSetup</AssemblyName><Version>1.0.0</Version><Product>Invora shop installer</Product><InvoraPackagePath Condition="'$(InvoraPackagePath)' == ''">../../artifacts/Invora-Windows-local.zip</InvoraPackagePath></PropertyGroup>
+  <ItemGroup><EmbeddedResource Include="$(InvoraPackagePath)" LogicalName="Invora.Release.zip" /></ItemGroup>
+</Project>
