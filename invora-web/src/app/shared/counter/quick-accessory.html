@@ -1,0 +1,29 @@
+<invora-modal [title]="selected()?'Record stock':'Add product'" eyebrow="READY AT THE COUNTER" [busy]="busy()" (closed)="closed.emit()">
+ <p class="modal-intro muted">Cables, covers, guards and other items counted by quantity.</p>
+ @if(loading()){<p role="status">Loading your category defaults…</p>}
+ <form [formGroup]="form" (ngSubmit)="save()">
+ <fieldset class="plain-fieldset" [disabled]="busy()||loading()">
+ @if(selected();as item){
+  <section class="accessory-selected"><span class="badge">EXISTING PRODUCT</span><h3>{{item.name}}</h3><p>{{item.category}} · {{item.sellingPrice|currency:'INR'}} / item</p><small>{{available()===null?'Checking stock…':available()+' already recorded in this branch'}}</small>
+  @if(auth.can('inventory.create')&&!product()){<button type="button" class="text-link" (click)="chooseNew()">Choose a different item</button>}
+  </section>
+ }@else{
+  <label>Item name<input formControlName="name" maxlength="200" placeholder="e.g. Clear case for Galaxy S24" (input)="queueSearch()" autofocus></label>
+  @if(searching()){<p class="small muted" role="status">Checking for an existing item…</p>}
+  @if(matches().length){<section class="accessory-matches" aria-label="Existing accessory matches"><p class="small">Already in your catalog? Use the same item.</p>@for(item of matches();track item.id){<button type="button" (click)="choose(item)"><span><strong>{{item.name}}</strong><small>{{item.brand}} · {{item.category}} · {{item.sku}}</small></span><span>Use item →</span></button>}</section>}
+  <div class="form-grid"><label>Category<input formControlName="category" list="accessory-categories" (change)="categoryChanged()" maxlength="100"><datalist id="accessory-categories">@for(name of categoryNames();track name){<option [value]="name"></option>}</datalist></label><label>Selling price / item (₹)<input formControlName="sellingPrice" aria-label="Selling price / item (₹)" aria-describedby="accessory-selling-help" type="number" min="0" step="0.01" placeholder="Customer's price"><small id="accessory-selling-help" class="muted">Includes GST when your shop charges GST.</small></label></div>
+ }
+ <div class="accessory-count"><div class="form-grid"><label>Quantity to record<input formControlName="quantity" aria-label="Quantity to record" aria-describedby="accessory-quantity-help" type="number" min="1" max="100000" step="1"><small id="accessory-quantity-help" class="muted">Only items counted but not yet recorded.</small></label><label>Cost / item (₹)<input formControlName="unitCost" aria-label="Cost / item (₹)" aria-describedby="accessory-cost-help" type="number" min="0" step="0.01" placeholder="Actual inventory cost"><small id="accessory-cost-help" class="muted">This cost is used for profit. Enter 0 only for items obtained free.</small></label></div></div>
+ @if(!selected()){
+ <section class="accessory-billing"><div class="accessory-billing-heading"><div><strong>{{billingReady()?'Billing details ready':'Set billing details once'}}</strong><small>{{billingReady()?billingText():'Choose the correct HSN and tax for this type of item.'}}</small></div><button type="button" class="text-link" (click)="showBilling.set(!showBilling())">{{showBilling()?'Hide details':'Edit details'}}</button></div>
+ @if(showBilling()){<div class="form-grid"><label>HSN code<input formControlName="hsn" inputmode="numeric" maxlength="8" placeholder="4, 6 or 8 digits"></label><label>Tax rate<select formControlName="taxRateId" aria-label="Tax rate"><option value="">Choose tax</option>@for(tax of taxes();track tax.id){<option [value]="tax.id">{{tax.name}} · {{tax.rate}}%</option>}</select></label></div><p class="small muted">Defaults apply to new items. The shop's GST registration settings determine tax on the bill.</p>@if(auth.can('business.settings')){<label class="checkbox"><input type="checkbox" formControlName="rememberBilling">Remember this billing setup for this category</label>}}
+ </section>
+ <details class="accessory-options"><summary>Optional: brand, barcode, MRP & warranty</summary><div class="form-grid"><label>Brand<input formControlName="brand" maxlength="100" placeholder="Generic"></label><label>Barcode (optional)<input formControlName="barcode" maxlength="100" placeholder="Scan or enter existing barcode"></label><label>MRP (₹, optional)<input formControlName="mrp" type="number" min="0" step="0.01" placeholder="Defaults to selling price"></label><label>Manufacturer warranty (months)<input formControlName="warrantyMonths" type="number" min="0" max="120" step="1"></label></div><small class="muted">A SKU is generated automatically. Quantity items support the existing QR sticker and scanner flow.</small></details>
+ }
+ <p class="accessory-posting-note">{{mode()==='sale'?'Save records this stock immediately and adds one item to your bill. Adjust the sale quantity in the cart.':'Save records this stock immediately in the selected branch.'}} Supplier bills and amounts owed belong in Purchases.</p>
+ @if(!selected()){<button type="button" class="text-link" (click)="advanced.emit()">Need IMEI or serial tracking? Open the phone / device form →</button>}
+ </fieldset>
+ <p class="error" role="alert">{{error()}}</p>
+ <div class="form-footer"><button type="button" class="secondary" [disabled]="busy()" (click)="closed.emit()">Cancel</button><button type="submit" class="primary" [disabled]="busy()||!valid()">{{busy()?'Saving stock…':mode()==='sale'?'Save stock & add to bill':'Save stock'}}</button></div>
+ </form>
+</invora-modal>

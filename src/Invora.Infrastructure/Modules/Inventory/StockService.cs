@@ -6,7 +6,7 @@ using Invora.Infrastructure.Modules.Catalog;
 using Invora.Infrastructure.Modules.Retail;
 using Microsoft.EntityFrameworkCore;
 namespace Invora.Infrastructure.Modules.Inventory;
-public sealed class StockService(RetailOperations r,CatalogService catalog)
+public sealed class StockService(RetailOperations r,CatalogService catalog,InventoryValuationService valuation)
 {
     public async Task ReceiveAsync(Guid branch,ProductVariant variant,int qty,decimal cost,DeviceCapture[]? captures,string source,Guid? purchase,Guid? purchaseItem,CancellationToken ct,decimal? totalCost=null)
     {
@@ -72,21 +72,37 @@ public sealed class StockService(RetailOperations r,CatalogService catalog)
         if(productVariantId is Guid productId)q=q.Where(x=>x.ProductVariantId==productId);
         if(!string.IsNullOrWhiteSpace(brand)){var selected=brand.Trim().ToUpperInvariant();q=q.Where(x=>r.Db.Set<ProductVariant>().Any(v=>v.Id==x.ProductVariantId&&r.Db.Set<ProductModel>().Any(m=>m.Id==v.ProductModelId&&m.Brand.ToUpper()==selected)));}
         if(!string.IsNullOrWhiteSpace(category)){var selected=category.Trim().ToUpperInvariant();var mobile=CatalogService.IsMobile(selected);q=q.Where(x=>r.Db.Set<ProductVariant>().Any(v=>v.Id==x.ProductVariantId&&r.Db.Set<ProductModel>().Any(m=>m.Id==v.ProductModelId&&(mobile?(new[]{"MOBILE","SMARTPHONE","MOBILE PHONE","PHONE"}.Contains(m.Category.ToUpper())||r.Db.Set<ProductCategory>().Any(c=>c.RequiresImei&&c.NormalizedName==m.Category.ToUpper())):m.Category.ToUpper()==selected))));}
+        if(ItemLabelCode.TryParse(search,out var label)){q=label.Kind=="unit"?q.Where(x=>x.Id==label.Id):q.Where(x=>x.ProductVariantId==label.Id);search=null;}
         var parts=RetailOperations.SearchParts(search);
         foreach(var term in parts.Terms){var compact=term.Replace(" ","");q=q.Where(x=>r.Db.Set<UnitIdentifier>().Any(i=>i.StockUnitId==x.Id&&i.Value.Contains(compact))||r.Db.Set<ProductVariant>().Any(v=>v.Id==x.ProductVariantId&&r.Db.Set<ProductModel>().Any(m=>m.Id==v.ProductModelId&&(m.Brand+" "+m.Name+" "+m.Category+" "+v.Ram+" "+v.Storage+" "+v.Color+" "+v.Sku+" "+(v.Barcode??"")).ToUpper().Replace(" ","").Contains(compact))));}
         if(parts.Ram is not null)q=q.Where(x=>r.Db.Set<ProductVariant>().Any(v=>v.Id==x.ProductVariantId&&v.Ram.ToUpper().Replace(" ","").Replace("GB","")==parts.Ram&&v.Storage.ToUpper().Replace(" ","").Replace("GB","")==parts.Storage));
-        var total=await q.LongCountAsync(ct);var units=await q.OrderByDescending(x=>x.ReceivedAtUtc).ThenBy(x=>x.Id).Skip((page-1)*size).Take(size).ToArrayAsync(ct);var result=new List<InventoryView>();foreach(var unit in units)result.Add(await ViewAsync(unit,ct));return new(result,page,size,total);
+        var total=await q.LongCountAsync(ct);var units=await q.OrderByDescending(x=>x.ReceivedAtUtc).ThenBy(x=>x.Id).Skip((page-1)*size).Take(size).ToArrayAsync(ct);var values=r.Can("inventory.cost.view")?await valuation.UnitsAsync(units,ct):new Dictionary<Guid,decimal>();var result=new List<InventoryView>();foreach(var unit in units)result.Add(await ViewAsync(unit,ct,values.GetValueOrDefault(unit.Id)));return new(result,page,size,total);
     }
-    public async Task<InventoryView> ViewAsync(StockUnit unit,CancellationToken ct)
+    public async Task<InventoryView> ViewAsync(StockUnit unit,CancellationToken ct,decimal? purchaseValue=null)
     {
-        var p=await catalog.ProductAsync(unit.ProductVariantId,ct);var ids=await r.Db.Set<UnitIdentifier>().Where(x=>x.StockUnitId==unit.Id).OrderBy(x=>x.Slot).Select(x=>x.Slot+": "+x.Value).ToArrayAsync(ct);return new(unit.Id,unit.ProductVariantId,unit.BranchId,CatalogService.Description(p.Model,p.Variant),p.Variant.Sku,unit.Condition,unit.Status.ToString(),ids,r.Can("inventory.cost.view")?unit.Cost:null,p.Variant.SellingPrice,unit.ReceivedAtUtc);
+        if(r.Can("inventory.cost.view")&&purchaseValue is null)purchaseValue=(await valuation.UnitsAsync([unit],ct))[unit.Id];
+        var p=await catalog.ProductAsync(unit.ProductVariantId,ct);var ids=await r.Db.Set<UnitIdentifier>().Where(x=>x.StockUnitId==unit.Id).OrderBy(x=>x.Slot).Select(x=>x.Slot+": "+x.Value).ToArrayAsync(ct);return new(unit.Id,unit.ProductVariantId,unit.BranchId,CatalogService.Description(p.Model,p.Variant),p.Variant.Sku,unit.Condition,unit.Status.ToString(),ids,r.Can("inventory.cost.view")?unit.Cost:null,p.Variant.SellingPrice,unit.ReceivedAtUtc,r.Can("inventory.cost.view")?purchaseValue:null);
     }
     public async Task<object> ScanAsync(Guid branch,string value,CancellationToken ct)
     {
         await r.BranchAsync(branch,"inventory.view",ct);RetailOperations.Text(value,"Scan value",100);var code=value.Trim().ToUpperInvariant();
-        var identities=await r.Db.Set<UnitIdentifier>().Where(x=>x.Value==code && r.Db.Set<StockUnit>().Any(u=>u.Id==x.StockUnitId && u.BranchId==branch)).Take(2).ToArrayAsync(ct);RetailOperations.Check(identities.Length<=1,"Scan matches multiple identity types. Use the inventory search.","AMBIGUOUS_SCAN");var identity=identities.SingleOrDefault();
-        if(identity is not null){var unit=await r.Db.Set<StockUnit>().SingleOrDefaultAsync(x=>x.Id==identity.StockUnitId && x.BranchId==branch,ct)??throw new DomainException("NOT_FOUND","Device is not available in this branch.");return new{kind="unit",unit=await ViewAsync(unit,ct)};}
-        var variant=await r.Db.Set<ProductVariant>().SingleOrDefaultAsync(x=>x.Barcode==value || x.Sku==code,ct)??throw new DomainException("NOT_FOUND","No matching stock or product.");return new{kind="product",productVariantId=variant.Id,serialized=variant.Serialized,price=variant.SellingPrice};
+        if(ItemLabelCode.TryParse(code,out var label))
+        {
+            if(label.Kind=="unit")
+            {
+                var unit=await r.Db.Set<StockUnit>().AsNoTracking().SingleOrDefaultAsync(x=>x.Id==label.Id&&x.BranchId==branch,ct)??throw new DomainException("NOT_FOUND","Device is not in this branch.");
+                return new{kind="unit",unit=await ViewAsync(unit,ct)};
+            }
+            var product=await r.Db.Set<ProductVariant>().AsNoTracking().SingleOrDefaultAsync(x=>x.Id==label.Id&&x.IsActive,ct)??throw new DomainException("NOT_FOUND","Product is unavailable.");
+            return new{kind="product",productVariantId=product.Id,serialized=product.Serialized,price=product.SellingPrice};
+        }
+        RetailOperations.Check(!code.StartsWith("INVORA:"),"This item QR code is invalid. Scan the full label again.");
+        var units=await r.Db.Set<StockUnit>().Where(u=>u.BranchId==branch&&r.Db.Set<UnitIdentifier>().Any(i=>i.StockUnitId==u.Id&&i.Value==code)).Take(2).ToArrayAsync(ct);
+        var variants=await r.Db.Set<ProductVariant>().Where(x=>x.IsActive&&(x.Barcode==value.Trim()||x.Sku==code)).Take(2).ToArrayAsync(ct);
+        RetailOperations.Check(units.Length+variants.Length<=1,"This code matches more than one item. Use an Invora QR label or select the item in search.","AMBIGUOUS_SCAN");
+        if(units.Length==1)return new{kind="unit",unit=await ViewAsync(units[0],ct)};
+        var variant=variants.SingleOrDefault()??throw new DomainException("NOT_FOUND","No matching stock or product.");
+        return new{kind="product",productVariantId=variant.Id,serialized=variant.Serialized,price=variant.SellingPrice};
     }
     public async Task<object> BalancesAsync(Guid branch,CancellationToken ct,int page=1,int size=25,string? search=null,string? brand=null,string? category=null,string? status=null)
     {
@@ -94,7 +110,13 @@ public sealed class StockService(RetailOperations r,CatalogService catalog)
         if(!string.IsNullOrWhiteSpace(brand)){var value=brand.Trim().ToUpperInvariant();q=q.Where(x=>x.Brand.ToUpper()==value);}
         if(!string.IsNullOrWhiteSpace(category)){var value=category.Trim().ToUpperInvariant();q=q.Where(x=>x.Category.ToUpper()==value);}
         if(!string.IsNullOrWhiteSpace(status)){RetailOperations.Check(status is "InStock" or "OutOfStock","Choose available or out-of-stock for quantity inventory.");q=status=="InStock"?q.Where(x=>x.Quantity>0):q.Where(x=>x.Quantity==0);}
-        foreach(var term in RetailOperations.SearchParts(search).Terms)q=q.Where(x=>x.name.ToUpper().Contains(term)||x.Sku.ToUpper().Contains(term)||(x.Barcode??"").ToUpper().Contains(term));return new{items=await q.OrderBy(x=>x.name).ThenBy(x=>x.Id).Skip((page-1)*size).Take(size).ToArrayAsync(ct),page,pageSize=size,totalItems=await q.LongCountAsync(ct)};
+        if(ItemLabelCode.TryParse(search,out var label)){q=q.Where(x=>label.Kind=="product"&&x.ProductVariantId==label.Id);search=null;}
+        foreach(var term in RetailOperations.SearchParts(search).Terms)q=q.Where(x=>x.name.ToUpper().Contains(term)||x.Sku.ToUpper().Contains(term)||(x.Barcode??"").ToUpper().Contains(term));var rows=await q.OrderBy(x=>x.name).ThenBy(x=>x.Id).Skip((page-1)*size).Take(size).ToArrayAsync(ct);
+        var canCost=r.Can("inventory.cost.view");var ids=rows.Select(x=>x.ProductVariantId).ToArray();
+        var layers=canCost?await r.Db.Set<StockCostLayer>().AsNoTracking().Where(x=>x.BranchId==branch&&ids.Contains(x.ProductVariantId)&&x.RemainingQuantity>0).ToArrayAsync(ct):[];
+        var values=canCost?await valuation.QuantitiesAsync(layers,ct):new Dictionary<Guid,decimal>();
+        var costs=layers.GroupBy(x=>x.ProductVariantId).ToDictionary(g=>g.Key,g=>g.Sum(x=>x.RemainingQuantity*x.UnitCost));
+        return new{items=rows.Select(x=>new{x.Id,x.ProductVariantId,x.Quantity,x.name,x.Brand,x.Category,x.Sku,x.Barcode,x.SellingPrice,PurchaseValue=canCost?(decimal?)values.GetValueOrDefault(x.ProductVariantId):null,Cost=canCost?(decimal?)costs.GetValueOrDefault(x.ProductVariantId):null}),page,pageSize=size,totalItems=await q.LongCountAsync(ct)};
     }
     public Task<Guid> CreateProductWithStockAsync(ProductWithStockRequest request,string key,CancellationToken ct)=>r.ExecuteAsync("product-with-stock",key,request,async()=>{
         await r.BranchAsync(request.BranchId,"inventory.adjust",ct);await r.PermissionAsync("inventory.cost.view",ct);RetailOperations.Text(request.Reason,"Stock reason");
@@ -122,6 +144,7 @@ public sealed class StockService(RetailOperations r,CatalogService catalog)
     public IQueryable<InventoryMovement> MovementQuery(Guid branch,Guid? unit,string? search)
     {
         var q=r.Db.Set<InventoryMovement>().AsNoTracking().Where(x=>x.BranchId==branch&&(unit==null||x.StockUnitId==unit));
+        if(ItemLabelCode.TryParse(search,out var label)){q=label.Kind=="unit"?q.Where(x=>x.StockUnitId==label.Id):q.Where(x=>x.ProductVariantId==label.Id);search=null;}
         foreach(var term in RetailOperations.SearchParts(search).Terms)q=q.Where(x=>x.Kind.ToUpper().Contains(term)||x.Note.ToUpper().Contains(term)||r.Db.Set<ProductVariant>().Any(v=>v.Id==x.ProductVariantId&&(v.Sku.ToUpper().Contains(term)||r.Db.Set<ProductModel>().Any(m=>m.Id==v.ProductModelId&&(m.Brand+" "+m.Name).ToUpper().Contains(term))))||r.Db.Set<UnitIdentifier>().Any(i=>i.StockUnitId==x.StockUnitId&&i.Value.Contains(term)));
         return q;
     }

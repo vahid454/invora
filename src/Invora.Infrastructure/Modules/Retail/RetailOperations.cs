@@ -72,10 +72,10 @@ public sealed class RetailOperations(InvoraDbContext db, ICurrentUser user)
         var shop=string.Concat(words.Take(4).Select(x=>x.Value[0]));if(shop.Length==0)shop="SHOP";
         return $"{kind}-{shop}-{branch.Code}-{date.ToString("ddMMMyy",System.Globalization.CultureInfo.InvariantCulture)}-{number.Split('-').Last()}";
     }
-    public void Ledger(Guid branch,Guid party,DateOnly date,string kind,decimal debit,decimal credit,Guid? sale=null,Guid? purchase=null,Guid? payment=null,Guid? saleReturn=null,Guid? reverse=null,string note="")
+    public void Ledger(Guid branch,Guid party,DateOnly date,string kind,decimal debit,decimal credit,Guid? sale=null,Guid? purchase=null,Guid? payment=null,Guid? saleReturn=null,Guid? reverse=null,string note="",Guid? existingDue=null)
     {
         Check(debit>0 && credit==0 || credit>0 && debit==0,"Ledger entry must have one positive side.");
-        db.Add(new LedgerEntry{BranchId=branch,PartyId=party,BusinessDate=date,Kind=kind,Debit=debit,Credit=credit,SaleId=sale,PurchaseId=purchase,PaymentId=payment,SaleReturnId=saleReturn,ReversesEntryId=reverse,Note=note,ActorId=Actor});
+        db.Add(new LedgerEntry{BranchId=branch,PartyId=party,BusinessDate=date,ExistingDueId=existingDue,Kind=kind,Debit=debit,Credit=credit,SaleId=sale,PurchaseId=purchase,PaymentId=payment,SaleReturnId=saleReturn,ReversesEntryId=reverse,Note=note,ActorId=Actor});
     }
     public void Movement(Guid branch,Guid variant,int qty,string kind,Guid? unit=null,Guid? purchase=null,Guid? sale=null,Guid? saleReturn=null,Guid? transfer=null,string note="")=>db.Add(new InventoryMovement{BranchId=branch,ProductVariantId=variant,StockUnitId=unit,Quantity=qty,Kind=kind,PurchaseId=purchase,SaleId=sale,SaleReturnId=saleReturn,TransferId=transfer,Note=note,ActorId=Actor});
     public async Task<decimal> TradingBalanceAsync(Guid branch,Guid party,CancellationToken ct)=>await db.Set<LedgerEntry>().Where(x=>x.BranchId==branch && x.PartyId==party && !x.Kind.StartsWith("LenDen")).SumAsync(x=>x.Debit-x.Credit,ct);
@@ -87,6 +87,11 @@ public sealed class RetailOperations(InvoraDbContext db, ICurrentUser user)
         return cash + (sale is not null ? await db.Set<SaleNonCashSettlement>().Where(x=>x.SaleId==sale).SumAsync(x=>x.Amount-db.Set<NonCashSettlementReversal>().Where(y=>y.SaleNonCashSettlementId==x.Id).Sum(y=>(decimal?)y.Amount).GetValueOrDefault(),ct) : 0);
     }
     public async Task<decimal> SaleDueAsync(Sale sale,CancellationToken ct)=>Math.Max(0,sale.Total-await db.Set<SaleReturn>().Where(x=>x.SaleId==sale.Id).SumAsync(x=>x.Credit,ct)-await AllocatedAsync(sale.Id,null,ct));
+    public async Task<decimal> ExistingDueBalanceAsync(ExistingDue due,CancellationToken ct)
+    {
+        if(await db.Set<LedgerEntry>().AnyAsync(x=>x.ExistingDueId==due.Id && x.Kind=="OpeningDueReversal",ct))return 0;
+        return Math.Max(0,due.Amount-await db.Set<PaymentAllocation>().Where(x=>x.ExistingDueId==due.Id).SumAsync(x=>x.Amount-db.Set<AllocationReversal>().Where(a=>a.PaymentAllocationId==x.Id).Sum(a=>(decimal?)a.Amount).GetValueOrDefault(),ct));
+    }
     public async Task<DateOnly> TodayAsync(CancellationToken ct){var business=await db.Businesses.SingleAsync(ct);return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,TimeZoneInfo.FindSystemTimeZoneById(business.TimeZone)).Date);}
     public async Task CaptureReceiptAsync(Payment payment,CancellationToken ct){var seller=await SettingsAsync(ct);var business=await db.Businesses.SingleAsync(ct);var party=await db.Set<Party>().SingleAsync(x=>x.Id==payment.PartyId,ct);payment.ReceiptJson=Json(new PaymentReceipt(await NumberAsync(payment.BranchId,"PAY",payment.BusinessDate,ct),payment.BusinessDate,business.TradeName,seller.Address,party.Name,party.Phone,payment.Amount,payment.Direction,payment.Method.ToString(),payment.Reference,payment.Note));}
     public async Task<SettingsRequest> SettingsAsync(CancellationToken ct)

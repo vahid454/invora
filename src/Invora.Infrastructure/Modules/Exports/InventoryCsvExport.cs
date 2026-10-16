@@ -23,7 +23,7 @@ public sealed class InventoryCsvExport(RetailOperations r,StockService stock)
         string[] headers=view=="movements"?["Exported at","Branch","Movement date","Product","SKU","Movement","Quantity change","Note"]:
             view=="quantity"?["Exported at","Branch","Product","Brand","Category","SKU","Barcode","On hand","Selling price","Last movement"]:
             ["Exported at","Branch","Product","Brand","Category","SKU","RAM","Storage","Colour","IMEI 1","IMEI 2","Serial / shop tag","Status","Condition","Received date","Days since receipt","Last movement","Selling price"];
-        if(cost&&view is "devices" or "aging")headers=[..headers,"Unit cost"];
+        if(cost&&view is "devices" or "aging" or "quantity")headers=[..headers,view=="quantity"?"Stock purchase value (incl. tax)":"Purchase value (incl. tax)",view=="quantity"?"Stock cost for profit":"Unit cost for profit"];
         for(var page=1;page<=1000;page++)
         {
             int count;
@@ -38,7 +38,7 @@ public sealed class InventoryCsvExport(RetailOperations r,StockService stock)
                     var product=products[unit.ProductVariantId];string Identity(string slot)=>unit.Identifiers.FirstOrDefault(x=>x.StartsWith(slot+": ",StringComparison.Ordinal))?[(slot.Length+2)..]??"";
                     var serial=string.Join(" / ",unit.Identifiers.Where(x=>!x.StartsWith("IMEI",StringComparison.Ordinal)).Select(x=>x[(x.IndexOf(':')+2)..]));
                     string[] row=[exported,branchName,product.Name,product.Brand,product.Category,unit.Sku,product.Ram,product.Storage,product.Color,Identity("IMEI1"),Identity("IMEI2"),serial,unit.Status,unit.Condition,Date(unit.ReceivedAtUtc),Math.Max(0,(int)(DateTimeOffset.UtcNow-unit.ReceivedAtUtc).TotalDays).ToString(CultureInfo.InvariantCulture),Date(last.TryGetValue(unit.Id,out var moved)?moved:null),unit.SellingPrice.ToString("0.00",CultureInfo.InvariantCulture)];
-                    if(cost)row=[..row,unit.Cost?.ToString("0.00",CultureInfo.InvariantCulture)??""];rows.Add(row);
+                    if(cost)row=[..row,unit.PurchaseValue?.ToString("0.00",CultureInfo.InvariantCulture)??"",unit.Cost?.ToString("0.00",CultureInfo.InvariantCulture)??""];rows.Add(row);
                 }
             }
             else if(view=="quantity")
@@ -48,7 +48,8 @@ public sealed class InventoryCsvExport(RetailOperations r,StockService stock)
                 {
                     var variant=item.GetProperty("ProductVariantId").GetGuid();var moved=await r.Db.Set<InventoryMovement>().Where(x=>x.BranchId==branch&&x.ProductVariantId==variant).MaxAsync(x=>(DateTimeOffset?)x.CreatedAtUtc,ct);
                     string Text(string name)=>item.TryGetProperty(name,out var value)&&value.ValueKind!=JsonValueKind.Null?value.ToString():"";
-                    rows.Add([exported,branchName,Text("name"),Text("Brand"),Text("Category"),Text("Sku"),Text("Barcode"),Text("Quantity"),Text("SellingPrice"),Date(moved)]);
+                    string[] row=[exported,branchName,Text("name"),Text("Brand"),Text("Category"),Text("Sku"),Text("Barcode"),Text("Quantity"),item.GetProperty("SellingPrice").GetDecimal().ToString("0.00",CultureInfo.InvariantCulture),Date(moved)];
+                    if(cost)row=[..row,item.GetProperty("PurchaseValue").GetDecimal().ToString("0.00",CultureInfo.InvariantCulture),item.GetProperty("Cost").GetDecimal().ToString("0.00",CultureInfo.InvariantCulture)];rows.Add(row);
                 }
             }
             else

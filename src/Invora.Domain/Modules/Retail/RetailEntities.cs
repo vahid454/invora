@@ -21,9 +21,9 @@ public sealed class SaleItem : Entity { public Guid SaleId { get; set; } public 
 public sealed class SaleCostAllocation : Entity { public int ReturnedQuantity { get; set; } public Guid SaleItemId { get; set; } public Guid StockCostLayerId { get; set; } public int Quantity { get; set; } public int RestoredQuantity { get; set; } }
 public enum PaymentMethod { Cash = 1, Upi = 2, Card = 3, BankTransfer = 4, Cheque = 5, Other = 6 }
 public sealed class Payment : Entity { public string ReceiptJson { get; set; } = "{}"; public Guid BranchId { get; set; } public Guid PartyId { get; set; } public decimal Amount { get; set; } public string Direction { get; set; } = "In"; public PaymentMethod Method { get; set; } public DateOnly BusinessDate { get; set; } public string Reference { get; set; } = ""; public string Note { get; set; } = ""; public Guid? ReversesPaymentId { get; set; } public Guid ActorId { get; set; } }
-public sealed class PaymentAllocation : Entity { public Guid PaymentId { get; set; } public Guid? SaleId { get; set; } public Guid? PurchaseId { get; set; } public decimal Amount { get; set; } }
+public sealed class PaymentAllocation : Entity { public Guid? ExistingDueId { get; set; } public Guid PaymentId { get; set; } public Guid? SaleId { get; set; } public Guid? PurchaseId { get; set; } public decimal Amount { get; set; } }
 public sealed class AllocationReversal : Entity { public Guid PaymentAllocationId { get; set; } public decimal Amount { get; set; } public string Reason { get; set; } = ""; public Guid ActorId { get; set; } }
-public sealed class LedgerEntry : Entity { public Guid? DeviceAcquisitionId { get; set; } public Guid? PurchaseReturnId { get; set; } public Guid BranchId { get; set; } public Guid PartyId { get; set; } public DateOnly BusinessDate { get; set; } public string Kind { get; set; } = ""; public Guid? SaleId { get; set; } public Guid? PurchaseId { get; set; } public Guid? PaymentId { get; set; } public Guid? SaleReturnId { get; set; } public Guid? ReversesEntryId { get; set; } public decimal Debit { get; set; } public decimal Credit { get; set; } public string Note { get; set; } = ""; public Guid ActorId { get; set; } }
+public sealed class LedgerEntry : Entity { public Guid? ExistingDueId { get; set; } public Guid? DeviceAcquisitionId { get; set; } public Guid? PurchaseReturnId { get; set; } public Guid BranchId { get; set; } public Guid PartyId { get; set; } public DateOnly BusinessDate { get; set; } public string Kind { get; set; } = ""; public Guid? SaleId { get; set; } public Guid? PurchaseId { get; set; } public Guid? PaymentId { get; set; } public Guid? SaleReturnId { get; set; } public Guid? ReversesEntryId { get; set; } public decimal Debit { get; set; } public decimal Credit { get; set; } public string Note { get; set; } = ""; public Guid ActorId { get; set; } }
 public sealed class SaleReturn : Entity { public string InvoiceJson { get; set; } = "{}"; public Guid SaleId { get; set; } public string Number { get; set; } = ""; public string Reason { get; set; } = ""; public DateOnly BusinessDate { get; set; } public decimal Credit { get; set; } public bool Cancellation { get; set; } }
 public sealed class SaleReturnItem : Entity { public decimal Taxable { get; set; } public decimal Cgst { get; set; } public decimal Sgst { get; set; } public decimal Igst { get; set; } public decimal Cess { get; set; } public Guid SaleReturnId { get; set; } public Guid SaleItemId { get; set; } public int Quantity { get; set; } public string Disposition { get; set; } = "Restock"; public decimal Credit { get; set; } public decimal Cost { get; set; } }
 public sealed class StockTransfer : Entity { public Guid FromBranchId { get; set; } public Guid ToBranchId { get; set; } public string Number { get; set; } = ""; public string Status { get; set; } = "InTransit"; public string Note { get; set; } = ""; }
@@ -53,4 +53,17 @@ public sealed class ImportJob : Entity
     public int RowCount { get; set; }
 }
 
-public sealed class PaymentFollowUp : Entity { public Guid BranchId { get; set; } public Guid CustomerId { get; set; } public Guid ActorId { get; set; } public string Kind { get; set; } = ""; public string Note { get; set; } = ""; public DateOnly? PromiseDate { get; set; } public DateOnly? NextContactDate { get; set; } public decimal? Amount { get; set; } }
+public sealed class PaymentFollowUp : Entity { public Guid? SaleId { get; set; } public Guid? ExistingDueId { get; set; } public Guid BranchId { get; set; } public Guid CustomerId { get; set; } public Guid ActorId { get; set; } public string Kind { get; set; } = ""; public string Note { get; set; } = ""; public DateOnly? PromiseDate { get; set; } public DateOnly? NextContactDate { get; set; } public decimal? Amount { get; set; } }
+
+// A receivable brought forward from a register, never a new sale or cash movement.
+public sealed class ExistingDue : Entity {
+    public Guid BranchId { get; set; }
+    public Guid CustomerId { get; set; }
+    public Guid ActorId { get; set; }
+    public string Reference { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string FinanceReference { get; set; } = "";
+    public decimal Amount { get; set; }
+    public DateOnly BusinessDate { get; set; }
+    public DateOnly DueDate { get; set; }
+}

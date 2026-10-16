@@ -86,13 +86,14 @@ internal sealed class ShopWindow : Form
                 if (!NavigationPolicy.IsInternal(origin, e.DownloadOperation.Uri)) { e.Cancel = true; return; }
                 using var dialog = new SaveFileDialog { FileName = Path.GetFileName(e.ResultFilePath), OverwritePrompt = true, Title = "Save from Invora" };
                 if (dialog.ShowDialog(this) != DialogResult.OK) { e.Cancel = true; return; }
-                e.ResultFilePath = dialog.FileName;
-                status.Text = "Downloading " + Path.GetFileName(dialog.FileName) + "…";
+                var destination = dialog.FileName;
+                e.ResultFilePath = destination;
+                status.Text = "Downloading " + Path.GetFileName(destination) + "…";
                 e.DownloadOperation.StateChanged += (_, _) =>
                 {
                     status.Text = e.DownloadOperation.State switch
                     {
-                        CoreWebView2DownloadState.Completed => "Saved " + Path.GetFileName(dialog.FileName),
+                        CoreWebView2DownloadState.Completed => "Saved " + Path.GetFileName(destination),
                         CoreWebView2DownloadState.Interrupted => "Download interrupted. Please try again.",
                         _ => "Downloading…"
                     };

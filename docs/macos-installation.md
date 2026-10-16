@@ -1,13 +1,13 @@
 # Install and run Invora on a Mac
 
-The Mac release is **`Invora-Mac.dmg`**, containing a native universal **Invora.app** launcher for Apple silicon and Intel Macs. A ZIP of the same app is available as `Invora-Mac.zip`. Billing runs in your browser; the native launcher installs, starts, checks, updates and stops the local .NET 10, Angular and PostgreSQL system. Docker Desktop remains required. No Python, Node or .NET installation is needed on the owner's Mac.
+The Mac release is **`Invora-Mac.dmg`**, containing a native universal **Invora.app** launcher for Apple silicon and Intel Macs. A ZIP of the same app is available as `Invora-Mac.zip`. Billing opens in a dedicated Invora window using macOS WebKit; the native launcher installs, starts, checks, updates and stops the local .NET 10, Angular and PostgreSQL system. Docker Desktop remains required. No Python, Node or .NET installation is needed on the owner's Mac.
 
 ## First installation
 
 1. Install and start [Docker Desktop for Mac](https://docs.docker.com/desktop/setup/install/mac-install/), choosing Apple silicon or Intel for that Mac. The launcher targets macOS 14 or newer; Docker's current supported macOS versions also apply. Review Docker Desktop's licence terms for your organization.
 2. Open **Invora-Mac.dmg**, drag **Invora.app** to **Applications**, and open it from there. Eject the installer after copying. Alternatively, unzip `Invora-Mac.zip` and move its app to Applications.
-3. Choose **Start shop**. The first run verifies the bundled files, creates a private configuration, downloads/builds containers, starts the database, applies explicit migrations, and opens the browser when ready. Keep Docker running. Initial installation requires internet and can take several minutes; normal local billing uses the built images.
-4. A new installation opens at `http://127.0.0.1:8080`. Open `/setup`. In the launcher choose **Application folder**; press **Shift–Command–.** in Finder to show hidden files. Read `INVORA_BOOTSTRAP_KEY` from the private `.env` using a text editor and use it to create the business and owner login. There is no preset owner password. Keep the key and `.env` private. Existing shops sign in with their existing accounts.
+3. Choose **Start shop**. The first run verifies the bundled files, creates a private configuration, downloads/builds containers, starts the database, applies explicit migrations, and opens the Invora shop window when ready. Keep Docker running. Initial installation requires internet and can take several minutes; normal local billing uses the built images.
+4. A new installation opens the local shop in its own window, without an address bar. Use **Set up Invora** on the sign-in page (or **Open in browser** and visit `http://127.0.0.1:8080/setup`). In the launcher choose **Application folder**; press **Shift–Command–.** in Finder to show hidden files. Read `INVORA_BOOTSTRAP_KEY` from the private `.env` using a text editor and use it to create the business and owner login. There is no preset owner password. Keep the key and `.env` private. Existing shops sign in with their existing accounts.
 5. Commercial releases require the vendor's signed key in **Shop licence**, issued for the Shop ID shown there. The setup key creates the owner; it is not a paid licence. Existing licensing configuration is preserved.
 6. Complete business/GST settings, individual employee accounts and permissions. Verify your actual scanner, printer and backup process before normal shop use.
 
@@ -24,7 +24,7 @@ The current app has an **ad-hoc signature**, which supports local integrity chec
 | Application folder | Opens the selected installation folder, including its hidden private `.env` |
 | Installation guide | Opens the bundled offline instructions |
 
-Closing the launcher or browser leaves the services running. The Mac must be awake and Docker running to serve billing. After restarting the Mac, start Docker Desktop and then Invora. The launcher does not install a background macOS service or configure remote access.
+Closing the shop window returns to the launcher. Closing the app leaves the services running. Use Stop shop to stop them. The shop toolbar includes Back, Reload, Downloads and Open in browser; PDF/CSV downloads ask where to save. The Mac must be awake and Docker running to serve billing. After restarting the Mac, start Docker Desktop and then Invora. The launcher does not install a background macOS service or configure remote access.
 
 ## Installation and data folders
 
@@ -74,3 +74,5 @@ DEVELOPER_DIR=/Library/Developer/CommandLineTools python3 scripts/package-macos.
 The build compiles arm64 and x86_64 slices, combines them, verifies the release manifest and ad-hoc signature, and creates DMG/ZIP files plus SHA-256 sidecars in `artifacts`. It excludes private configuration, vendor signing keys, issued licences, backups, generated files and business records.
 
 Read-only diagnostics and startup against the existing Apple silicon installation are tested locally. Intel execution, a new owner's first installation, downloaded/quarantined Gatekeeper behavior and real scanner/printer acceptance require their own target-Mac checks. Cross-compilation is not an Intel runtime test. Public signing/notarization remains a vendor release step.
+
+See [dedicated desktop windows](desktop-app.md) for the internal local address, browser fallback and session storage.

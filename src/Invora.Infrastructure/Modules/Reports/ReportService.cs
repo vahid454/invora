@@ -1,9 +1,10 @@
 using Invora.Contracts.Retail;
+using Invora.Infrastructure.Modules.Inventory;
 using Invora.Domain.Modules.Retail;
 using Invora.Infrastructure.Modules.Retail;
 using Microsoft.EntityFrameworkCore;
 namespace Invora.Infrastructure.Modules.Reports;
-public sealed class ReportService(RetailOperations r)
+public sealed class ReportService(RetailOperations r,InventoryValuationService valuation)
 {
     public async Task<object> DashboardAsync(Guid branch,DateOnly? from,DateOnly? to,CancellationToken ct)
     {
@@ -17,16 +18,23 @@ public sealed class ReportService(RetailOperations r)
         var inAmount=await payments.Where(x=>x.Direction=="In").SumAsync(x=>x.Amount,ct);var outAmount=await payments.Where(x=>x.Direction=="Out").SumAsync(x=>x.Amount,ct);
         var expenses=await r.Db.Set<Expense>().Where(x=>x.BranchId==branch && x.BusinessDate>=start && x.BusinessDate<=end).SumAsync(x=>x.ReversesExpenseId==null?x.Amount:-x.Amount,ct);
         var balances=await (from e in r.Db.Set<LedgerEntry>() join p in r.Db.Set<Party>() on e.PartyId equals p.Id where e.BranchId==branch group new{e,p} by new{e.PartyId,p.Kind,Independent=e.Kind.StartsWith("LenDen")} into g select new{g.Key.Kind,g.Key.Independent,Amount=g.Sum(x=>x.e.Debit-x.e.Credit)}).ToArrayAsync(ct);
-        decimal? stockValue=null;if(r.Can("inventory.cost.view"))stockValue=await r.Db.Set<StockUnit>().Where(x=>x.BranchId==branch && x.Status==DeviceStatus.InStock).SumAsync(x=>x.Cost,ct)+await r.Db.Set<StockCostLayer>().Where(x=>x.BranchId==branch).SumAsync(x=>x.RemainingQuantity*x.UnitCost,ct);
+        decimal? stockValue=null,stockPurchaseValue=null;
+        if(r.Can("inventory.cost.view"))
+        {
+            var units=await r.Db.Set<StockUnit>().AsNoTracking().Where(x=>x.BranchId==branch&&x.Status==DeviceStatus.InStock).ToArrayAsync(ct);
+            var layers=await r.Db.Set<StockCostLayer>().AsNoTracking().Where(x=>x.BranchId==branch&&x.RemainingQuantity>0).ToArrayAsync(ct);
+            stockValue=units.Sum(x=>x.Cost)+layers.Sum(x=>x.RemainingQuantity*x.UnitCost);
+            stockPurchaseValue=(await valuation.UnitsAsync(units,ct)).Values.Sum()+(await valuation.QuantitiesAsync(layers,ct)).Values.Sum();
+        }
         var methods=await payments.GroupBy(x=>x.Method).Select(g=>new{method=g.Key,received=g.Where(x=>x.Direction=="In").Sum(x=>x.Amount),paid=g.Where(x=>x.Direction=="Out").Sum(x=>x.Amount)}).ToArrayAsync(ct);
-        return new{from=start,to=end,grossSales=gross,creditNotes=credits,netSales=gross-credits,revenue,paymentsReceived=inAmount,paymentsPaid=outAmount,cashFlow=inAmount-outAmount-expenses,expenses,customerOutstanding=balances.Where(x=>x.Kind==PartyKind.Customer && x.Amount>0).Sum(x=>x.Amount),customerCredit=balances.Where(x=>x.Kind==PartyKind.Customer && x.Amount<0).Sum(x=>-x.Amount),supplierPayable=balances.Where(x=>x.Kind==PartyKind.Supplier && x.Amount<0).Sum(x=>-x.Amount),supplierReceivable=balances.Where(x=>x.Kind==PartyKind.Supplier && x.Amount>0).Sum(x=>x.Amount),stockValue,grossProfit=r.Can("profit.view")?(decimal?)(revenue-cost):null,estimatedOperatingProfit=r.Can("profit.view")?(decimal?)(revenue-cost-expenses):null,stockDevices=await r.Db.Set<StockUnit>().CountAsync(x=>x.BranchId==branch && x.Status==DeviceStatus.InStock,ct),methods};
+        return new{from=start,to=end,grossSales=gross,creditNotes=credits,netSales=gross-credits,revenue,paymentsReceived=inAmount,paymentsPaid=outAmount,cashFlow=inAmount-outAmount-expenses,expenses,customerOutstanding=balances.Where(x=>x.Kind==PartyKind.Customer && x.Amount>0).Sum(x=>x.Amount),customerCredit=balances.Where(x=>x.Kind==PartyKind.Customer && x.Amount<0).Sum(x=>-x.Amount),supplierPayable=balances.Where(x=>x.Kind==PartyKind.Supplier && x.Amount<0).Sum(x=>-x.Amount),supplierReceivable=balances.Where(x=>x.Kind==PartyKind.Supplier && x.Amount>0).Sum(x=>x.Amount),stockValue,stockPurchaseValue,grossProfit=r.Can("profit.view")?(decimal?)(revenue-cost):null,estimatedOperatingProfit=r.Can("profit.view")?(decimal?)(revenue-cost-expenses):null,stockDevices=await r.Db.Set<StockUnit>().CountAsync(x=>x.BranchId==branch && x.Status==DeviceStatus.InStock,ct),methods};
     }
     public async Task<object> AccountsAsync(Guid branch,int page,int size,string? search,CancellationToken ct,string? filter=null)
     {
         await r.BranchAsync(branch,"customers.credit.view",ct);RetailOperations.Page(page,size);
         var parties=r.Db.Set<Party>().AsNoTracking().Where(x=>x.Kind==PartyKind.Customer && x.IsActive);
         if(!string.IsNullOrWhiteSpace(search)){var term=search.Trim().ToUpperInvariant();var digits=new string(term.Where(char.IsAsciiDigit).ToArray());var local=digits.Length>=10?digits[^10..]:digits;parties=parties.Where(x=>x.Name.ToUpper().Contains(term)||x.Phone.Contains(term)||x.AlternatePhone.Contains(term)||(digits.Length>=3 && (x.Phone.Contains(digits)||x.AlternatePhone.Contains(digits)))||(local.Length>=10 && (x.Phone.Contains(local)||x.AlternatePhone.Contains(local))));}
-        var q=parties.Select(p=>new{p.Id,p.Name,p.Phone,p.AlternatePhone,promiseDate=r.Db.Set<PaymentFollowUp>().Where(f=>f.CustomerId==p.Id&&f.BranchId==branch&&(f.Kind=="Promise"||f.Kind=="ClearPromise")).OrderByDescending(f=>f.CreatedAtUtc).ThenByDescending(f=>f.Id).Select(f=>f.PromiseDate).FirstOrDefault(),nextContactDate=r.Db.Set<PaymentFollowUp>().Where(f=>f.CustomerId==p.Id&&f.BranchId==branch).OrderByDescending(f=>f.CreatedAtUtc).ThenByDescending(f=>f.Id).Select(f=>f.NextContactDate).FirstOrDefault(),tradeBalance=r.Db.Set<LedgerEntry>().Where(e=>e.BranchId==branch && e.PartyId==p.Id && !e.Kind.StartsWith("LenDen")).Sum(e=>(decimal?)(e.Debit-e.Credit))??0,independentBalance=r.Db.Set<LedgerEntry>().Where(e=>e.BranchId==branch && e.PartyId==p.Id && e.Kind.StartsWith("LenDen")).Sum(e=>(decimal?)(e.Debit-e.Credit))??0});
+        var q=parties.Select(p=>new{p.Id,p.Name,p.Phone,p.AlternatePhone,promiseDate=r.Db.Set<PaymentFollowUp>().Where(f=>f.CustomerId==p.Id&&f.BranchId==branch&&f.SaleId==null&&f.ExistingDueId==null&&(f.Kind=="Promise"||f.Kind=="ClearPromise")).OrderByDescending(f=>f.CreatedAtUtc).ThenByDescending(f=>f.Id).Select(f=>f.PromiseDate).FirstOrDefault(),nextContactDate=r.Db.Set<PaymentFollowUp>().Where(f=>f.CustomerId==p.Id&&f.BranchId==branch&&f.SaleId==null&&f.ExistingDueId==null).OrderByDescending(f=>f.CreatedAtUtc).ThenByDescending(f=>f.Id).Select(f=>f.NextContactDate).FirstOrDefault(),tradeBalance=r.Db.Set<LedgerEntry>().Where(e=>e.BranchId==branch && e.PartyId==p.Id && !e.Kind.StartsWith("LenDen")).Sum(e=>(decimal?)(e.Debit-e.Credit))??0,independentBalance=r.Db.Set<LedgerEntry>().Where(e=>e.BranchId==branch && e.PartyId==p.Id && e.Kind.StartsWith("LenDen")).Sum(e=>(decimal?)(e.Debit-e.Credit))??0});
         var today=await r.TodayAsync(ct);q=filter switch{"owed"=>q.Where(x=>(x.tradeBalance>0||x.independentBalance>0)),"credit"=>q.Where(x=>(x.tradeBalance<0||x.independentBalance<0)),"trade"=>q.Where(x=>x.tradeBalance>0),"independent"=>q.Where(x=>x.independentBalance>0),"promised"=>q.Where(x=>x.promiseDate!=null&&(x.tradeBalance>0||x.independentBalance>0)),"followup"=>q.Where(x=>x.nextContactDate<=today||x.promiseDate<=today&&(x.tradeBalance>0||x.independentBalance>0)),"missed"=>q.Where(x=>x.promiseDate<today&&(x.tradeBalance>0||x.independentBalance>0)),_=>q};
         return new{items=await q.OrderBy(x=>x.Name).ThenBy(x=>x.Id).Skip((page-1)*size).Take(size).ToArrayAsync(ct),page,pageSize=size,totalItems=await q.LongCountAsync(ct)};
     }

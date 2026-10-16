@@ -96,3 +96,7 @@ Commercial installations use a signed shop licence at **Shop licence**. Send the
 In **Sales & invoices**, combine the customer/phone/invoice search with **Invoice period**: Today, Yesterday, Last 7 days, This month or Custom dates. From/To include both dates and use the invoice's business date. Leave an endpoint blank for an open range; All dates/Clear dates removes the date restriction. Export CSV respects the current sales search and dates.
 
 In **New sale**, enter the actual cash, UPI and card amounts received; leave unused methods blank or zero. Review shows each method, total received, exchange credit and the remaining due. If you change a payment after review, the balance preview updates and you review once more before completing. Fully paid sales need no credit due date. For part payment, enter a due date; only the unpaid invoice balance appears in LenDen. A separate advance above the new bill should be recorded through Record payment.
+
+## Old register and remaining down payments
+
+Use **LenDen → Collections & promises** to enter/import amounts already owed to the shop, track a promised date per entry, receive partial payments and export a collection list with both customer phone numbers. Use its reviewed reminder queue to prepare WhatsApp/SMS drafts. Existing invoices appear automatically; do not bring them forward twice. Read [the collection guide](lenden-collections.md) before importing.

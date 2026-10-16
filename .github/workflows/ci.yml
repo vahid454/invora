@@ -11,6 +11,19 @@ jobs:
         run: bash scripts/test-macos.sh
       - name: Build and verify universal Mac installer
         run: python3 scripts/package-macos.py
+  verify-windows-desktop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Build Windows window and package installer payload
+        run: |
+          dotnet restore tools/Invora.Desktop --locked-mode
+          dotnet publish tools/Invora.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -o artifacts/windows-desktop
+          python scripts/package-windows.py
+          dotnet run --project tools/Invora.Setup -- --verify-package
   verify:
     runs-on: ubuntu-latest
     steps:

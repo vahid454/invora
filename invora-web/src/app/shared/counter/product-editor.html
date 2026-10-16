@@ -1,0 +1,116 @@
+<invora-modal [title]="product()?'Edit product':purchaseMode()?'New purchase item':variantOf()?'Add a variant':'Add product'" eyebrow="PRODUCT DETAILS" [busy]="busy()" (closed)="closed.emit()">
+<p class="muted modal-intro">Choose a category and enter the item details. Quantity items stay simple; phones and serial devices have individual identities.</p>@if(product()){<p class="panel-note">Edit the name, brand, category, billing details, barcode, prices and warranty here. Model details apply to all its variants. Completed bills keep their original details. SKU and tracking type stay fixed; use stock adjustments for quantity or cost changes and Inventory → Edit device for a received phone’s specifications or inspection details. IMEI / serial identities stay protected. Selling price and MRP apply to this variant on future bills.</p>}@if(variantOf()){<p class="panel-note">Adding another memory / color option for {{variantOf()!.brand}} {{variantOf()!.name}}. Shared model details stay the same.</p>}@if(purchaseMode()){<p class="panel-note">Enter the product, purchase cost and every phone’s IMEI here. These details carry into your purchase for review.</p>}<fieldset [formGroup]="form" class="plain-fieldset" [class.simple-product]="simpleQuantity()" [disabled]="busy()">
+<section class="counter-section">
+<h3>{{purchaseMode()?'What are you receiving?':'What are you selling?'}}</h3>
+<div class="form-grid">
+<label>Display / item name<input formControlName="name" placeholder="e.g. Galaxy A56 or USB cable" (input)="queueMatches()" maxlength="200" [readOnly]="!!variantOf()" required>
+</label>
+@if(!simpleQuantity()){<label>Brand<input formControlName="brand" aria-label="Brand" list="product-brands" placeholder="Choose or type a brand" maxlength="100" [readOnly]="!!variantOf()" required>
+<datalist id="product-brands">@for(brand of brands();track brand){<option [value]="brand">
+</option>}</datalist>
+</label>}
+<label>Category<input formControlName="category" aria-label="Category" list="product-categories" (change)="categoryChanged()" maxlength="100" [readOnly]="!!variantOf()" required>
+<datalist id="product-categories">@for(category of categories();track category.name){<option [value]="category.name">
+</option>}</datalist>
+</label>@if(isMobile()){<div class="tracking-note">
+<strong>Tracked by IMEI</strong>
+<small>One identity per physical phone. Quantity follows device count.</small>
+</div>}@else{<label>Stock tracking<select formControlName="serialized" (change)="trackingChanged()" [attr.disabled]="product()?true:null">
+<option value="true">Individual devices · IMEI / serial</option>
+<option value="false">Quantity · cables, chargers, accessories</option>
+</select>
+</label>}</div>@if(matches().length){<div class="accessory-matches"><p class="small muted">Already in your catalog? Record stock against the same product.</p>@for(item of matches();track item.id){<button type="button" (click)="existingChosen.emit(item)"><span><strong>{{item.name}}</strong><small>{{item.brand}} · {{item.sku}}</small></span><span>Use item →</span></button>}</div>}@if(!variantOf()){<div class="catalog-inline-actions">
+@if(!simpleQuantity()){<button type="button" class="secondary" (click)="showBrand.set(!showBrand())">+ Add new brand</button>}
+<button type="button" class="secondary master-add-link" (click)="showCategory.set(!showCategory())">+ Add new category</button>
+</div>@if(showCategory()){<fieldset [formGroup]="categoryForm" class="inline-tax">
+<div class="form-grid">
+<label>New category name<input formControlName="name" maxlength="100" required>
+</label>
+<label>Category stock type<select formControlName="type">
+<option value="electronics">Electronics / accessories</option>
+<option value="mobile">Mobile phones · IMEI required</option>
+</select>
+</label>
+</div>
+<button type="button" class="secondary" [disabled]="busy()||categoryForm.invalid" (click)="createCategory()">Save category</button>
+</fieldset>}@if(showBrand()){<div class="inline-tax">
+<label>New brand name<input [formControl]="brandControl" maxlength="100">
+</label>
+<button type="button" class="secondary" [disabled]="busy()||brandControl.invalid" (click)="createBrand()">Save brand</button>
+</div>}}@if(product()?.serialized){<div class="form-grid three">
+<label>RAM<input formControlName="ram" aria-label="RAM" placeholder="8 GB" list="product-ram">
+<datalist id="product-ram">@for(option of ramOptions;track option){<option [value]="option">
+</option>}</datalist>
+</label>
+<label>ROM / storage<input formControlName="storage" aria-label="ROM / storage" placeholder="128 GB" list="product-storage">
+<datalist id="product-storage">@for(option of storageOptions;track option){<option [value]="option">
+</option>}</datalist>
+</label>
+<label>Color<input formControlName="color" placeholder="Green">
+</label>
+</div>}@else if(form.controls.serialized.value==='true'){<p class="panel-note">Add RAM, storage and colour once for each phone in its IMEI / serial row when receiving stock.</p>}</section>
+<section class="counter-section">
+<h3>Price & billing</h3>
+<div class="form-grid">
+<label>Selling price (₹)<input formControlName="sellingPrice" type="number" min="0" step="0.01">
+</label>
+@if(!simpleQuantity()){<label>MRP (₹)<input formControlName="mrp" type="number" min="0" step="0.01"></label>}</div>
+@if(allowOpeningStock()&&!product()&&auth.can('inventory.adjust')&&auth.can('inventory.cost.view')){<section class="product-stock-entry">
+<label class="checkbox">
+<input type="checkbox" formControlName="addStock"> Add stock already in this shop now</label>
+<small class="muted">For existing stock only. Use a purchase to record a new supplier invoice and its payable.</small>@if(form.controls.addStock.value){<div class="form-grid">@if(form.controls.serialized.value!=='true'){<label>Quantity<input formControlName="quantity" type="number" min="1" max="100000">
+</label>}<label>Cost per unit (₹)<input formControlName="unitCost" type="number" min="0" step="0.01" placeholder="Actual inventory cost">
+</label>
+</div>
+@if(!simpleQuantity()){<label>Stock reason<input formControlName="reason" placeholder="Opening inventory counted in shop"></label>}@else{<p class="small muted">Enter additional unrecorded goods, not the new total. Cost is used for profit; use 0 only for goods obtained free. Saving records this stock immediately{{saleMode()?' and adds one to this bill; change the sale quantity in the cart':''}}.</p>}@if(form.controls.serialized.value==='true'){<invora-device-rows [rows]="devices" [defaults]="deviceDefaults()" [mobile]="isMobile()"/>}} </section>}
+<details class="product-billing" [open]="!simpleQuantity()||showBillingDetails()"><summary>{{billingReady()?'Billing details · HSN '+form.controls.hsn.value:'Set HSN & tax for this category'}}</summary><div class="form-grid">
+<label>HSN code<input [readOnly]="!!variantOf()" formControlName="hsn" [placeholder]="isMobile()?'85171300':'Enter HSN for this item'" maxlength="20" required>
+</label>
+<label>Tax rate<select aria-label="Tax rate" formControlName="taxRateId" [attr.disabled]="variantOf()?true:null">
+<option value="" disabled>Choose tax rate</option>@for(t of taxes();track t.id){<option [value]="t.id">{{t.name}} · GST {{displayRate(t.rate)}}%{{hasCess(t.cessRate)?' + cess '+displayRate(t.cessRate)+'%':''}}</option>}</select>
+</label>
+</div>
+<p class="small tax-explanation">{{taxExplanation()}}</p>@if(!taxes().length){<p class="panel-note">No tax rates are configured yet. {{auth.can('business.settings')?'Add the rate below to enable saving.':'Ask an owner to configure a tax rate.'}}</p>}@if(auth.can('business.settings')&&!variantOf()){<button type="button" class="text-link" (click)="showTax.set(!showTax())">+ Add tax rate here</button>@if(showTax()){<fieldset [formGroup]="taxForm" class="inline-tax">
+<div class="rate-presets">@for(rate of taxPresets;track rate){<button type="button" class="quiet" (click)="taxPreset(rate)">GST {{rate}}%</button>}</div>
+<p class="small muted">Enter the total GST rate. CGST and SGST are each half; inter-state billing uses the full rate as IGST. Custom rates and cess remain available.</p>
+<div class="form-grid three">
+<label>Tax name<input formControlName="name" placeholder="GST 18%" required>
+</label>
+<label>GST (%)<input formControlName="rate" type="number" min="0" max="100" step="0.0001">
+</label>
+<label>Cess (%)<input formControlName="cessRate" type="number" min="0" max="100" step="0.0001">
+</label>
+</div>
+<button type="button" class="secondary" [disabled]="busy()||taxForm.invalid" (click)="createTax()">Save tax rate</button>
+</fieldset>}}@if(simpleQuantity()&&!purchaseMode()&&form.controls.addStock.value&&auth.can('business.settings')){<label class="checkbox"><input type="checkbox" formControlName="rememberBilling">Remember this billing setup for this category</label>}</details>
+<details class="product-options">
+<summary>{{simpleQuantity()?'Optional: brand, MRP, barcode & warranty':'SKU, barcode & service warranty'}}</summary>
+<div class="form-grid">
+@if(simpleQuantity()){<label>Brand<input formControlName="brand" aria-label="Brand" list="product-brands" placeholder="Choose or type a brand" maxlength="100" required>
+<datalist id="product-brands">@for(brand of brands();track brand){<option [value]="brand">
+</option>}</datalist>
+</label><label>MRP (₹)<input formControlName="mrp" type="number" min="0" step="0.01" placeholder="Defaults to selling price"></label>}<label>SKU<input formControlName="sku" [readOnly]="!!product()" placeholder="Leave blank to generate">
+</label>
+<label>Barcode (optional)<input formControlName="barcode">
+</label>@if(form.controls.serialized.value==='false'){<label>Color (optional)<input formControlName="color" placeholder="Only if needed">
+</label>}<label>Manufacturer warranty (months)<input formControlName="warrantyMonths" [readOnly]="!!variantOf()" type="number" min="0" max="120">
+</label>
+</div>
+</details>
+</section>@if(purchaseMode()){<section class="counter-section purchase-receipt-editor">
+<h3>Receive this purchase item</h3>
+<fieldset [formGroup]="receiptForm" class="plain-fieldset">
+<div class="form-grid">
+<label>Purchase quantity<input formControlName="quantity" type="number" min="1" [max]="receiptSerialized()?100:100000" (change)="syncReceiptQuantity()">
+</label>
+<label>Purchase cost per unit (₹)<input formControlName="unitCost" type="number" min="0" step="0.01" placeholder="Cost on the supplier bill" required>
+</label>
+</div>
+</fieldset>
+<p class="small muted">{{receiptSerialized()?'Each device row has its own IMEI / serial, RAM, storage, colour and prices. Different configurations become separate purchase items.':'Enter the quantity and unit cost from the supplier bill. No device identities are needed.'}}</p>@if(receiptSerialized()||hasReceiptIdentity()){<invora-device-rows [rows]="devices" [defaults]="receiptDefaults()" [mobile]="isMobile()" [purchase]="true" (countChanged)="receiptCountChanged($event)"/>}<p class="small identity-error" role="status">{{receiptNotice()||receiptError()}}</p>
+</section>}</fieldset>
+<p class="error" role="alert">{{error()}}</p>@if(stockError()){<p class="small muted">{{stockError()}}</p>} <div class="form-footer">
+<button type="button" class="secondary" [disabled]="busy()" (click)="closed.emit()">Cancel</button>
+<button type="button" class="primary" [disabled]="busy()||form.invalid||!!stockError()||!!receiptError()" (click)="save()">{{busy()?'Saving…':product()?'Save changes':form.controls.addStock.value?'Save product & stock':!allowOpeningStock()?'Save & add to purchase':'Save product'}}</button>
+</div>
+</invora-modal>

@@ -9,11 +9,18 @@ internal static class RetailModel
     private static void Fk<T,U>(ModelBuilder m,Expression<Func<T,object?>> key) where T:class where U:class => m.Entity<T>().HasOne<U>().WithMany().HasForeignKey(key).OnDelete(DeleteBehavior.Restrict);
     public static void Configure(ModelBuilder m)
     {
-        var types=new[]{typeof(DeviceCorrection),typeof(BusinessLicense),typeof(PaymentFollowUp),typeof(ProductCategory),typeof(Brand),typeof(ImportJob),typeof(TaxRate),typeof(ProductModel),typeof(ProductVariant),typeof(Party),typeof(PartyNote),typeof(StockUnit),typeof(UnitIdentifier),typeof(StockBalance),typeof(StockCostLayer),typeof(InventoryMovement),typeof(Purchase),typeof(PurchaseItem),typeof(Sale),typeof(SaleItem),typeof(SaleCostAllocation),typeof(Payment),typeof(PaymentAllocation),typeof(AllocationReversal),typeof(LedgerEntry),typeof(SaleReturn),typeof(SaleReturnItem),typeof(StockTransfer),typeof(StockTransferItem),typeof(Expense),typeof(DocumentSequence),typeof(OperationReceipt),typeof(BusinessSettings),typeof(DocumentFile),typeof(DeviceInspection),typeof(DeviceAcquisition),typeof(SaleNonCashSettlement),typeof(PurchaseReturn),typeof(PurchaseReturnItem),typeof(NonCashSettlementReversal)};
+        var types=new[]{typeof(ExistingDue),typeof(DeviceCorrection),typeof(BusinessLicense),typeof(PaymentFollowUp),typeof(ProductCategory),typeof(Brand),typeof(ImportJob),typeof(TaxRate),typeof(ProductModel),typeof(ProductVariant),typeof(Party),typeof(PartyNote),typeof(StockUnit),typeof(UnitIdentifier),typeof(StockBalance),typeof(StockCostLayer),typeof(InventoryMovement),typeof(Purchase),typeof(PurchaseItem),typeof(Sale),typeof(SaleItem),typeof(SaleCostAllocation),typeof(Payment),typeof(PaymentAllocation),typeof(AllocationReversal),typeof(LedgerEntry),typeof(SaleReturn),typeof(SaleReturnItem),typeof(StockTransfer),typeof(StockTransferItem),typeof(Expense),typeof(DocumentSequence),typeof(OperationReceipt),typeof(BusinessSettings),typeof(DocumentFile),typeof(DeviceInspection),typeof(DeviceAcquisition),typeof(SaleNonCashSettlement),typeof(PurchaseReturn),typeof(PurchaseReturnItem),typeof(NonCashSettlementReversal)};
         Fk<DeviceCorrection,StockUnit>(m,x=>x.StockUnitId);Fk<DeviceCorrection,Branch>(m,x=>x.BranchId);m.Entity<DeviceCorrection>().HasIndex(x=>new{x.StockUnitId,x.CreatedAtUtc});
         Fk<BusinessLicense,BusinessProfile>(m,x=>x.BusinessId);
         m.Entity<BusinessLicense>().HasIndex(x=>x.CreatedAtUtc);
         foreach(var type in types){var b=m.Entity(type);b.HasKey("Id");b.Property("Version").IsConcurrencyToken();}
+        Fk<ExistingDue,Branch>(m,x=>x.BranchId);Fk<ExistingDue,Party>(m,x=>x.CustomerId);
+        m.Entity<ExistingDue>().HasIndex(x=>new{x.BranchId,x.Reference}).IsUnique();
+        m.Entity<ExistingDue>().HasIndex(x=>new{x.BranchId,x.CustomerId,x.DueDate});
+        m.Entity<ExistingDue>().ToTable("ExistingDue",t=>t.HasCheckConstraint("CK_ExistingDue_Amount","\"Amount\" > 0 AND \"DueDate\" >= \"BusinessDate\""));
+        Fk<PaymentAllocation,ExistingDue>(m,x=>x.ExistingDueId);Fk<LedgerEntry,ExistingDue>(m,x=>x.ExistingDueId);
+        Fk<PaymentFollowUp,ExistingDue>(m,x=>x.ExistingDueId);Fk<PaymentFollowUp,Sale>(m,x=>x.SaleId);
+        m.Entity<PaymentFollowUp>().ToTable("PaymentFollowUp",t=>t.HasCheckConstraint("CK_FollowUp_Target","num_nonnulls(\"SaleId\", \"ExistingDueId\") <= 1"));
         Fk<PaymentFollowUp,Branch>(m,x=>x.BranchId);Fk<PaymentFollowUp,Party>(m,x=>x.CustomerId);m.Entity<PaymentFollowUp>().HasIndex(x=>new{x.BranchId,x.CustomerId,x.CreatedAtUtc});
         Fk<ImportJob,Branch>(m,x=>x.BranchId);Fk<ProductModel,TaxRate>(m,x=>x.TaxRateId);Fk<ProductVariant,ProductModel>(m,x=>x.ProductModelId);
         Fk<PartyNote,Party>(m,x=>x.PartyId);Fk<PartyNote,Branch>(m,x=>x.BranchId);
@@ -52,7 +59,7 @@ internal static class RetailModel
         m.Entity<DocumentSequence>().HasIndex(x=>new{x.BranchId,x.Kind,x.FinancialYear}).IsUnique();
         m.Entity<OperationReceipt>().HasIndex(x=>new{x.UserId,x.Operation,x.Key}).IsUnique();
         m.Entity<BusinessSettings>().HasIndex(x=>x.SingletonKey).IsUnique();m.Entity<BusinessSettings>().ToTable("BusinessSettings",t=>t.HasCheckConstraint("CK_Settings_Singleton","\"SingletonKey\" = 1"));
-        m.Entity<PaymentAllocation>().ToTable("PaymentAllocation",t=>t.HasCheckConstraint("CK_Allocation_Target","(\"SaleId\" IS NULL) <> (\"PurchaseId\" IS NULL) AND \"Amount\" > 0"));
+        m.Entity<PaymentAllocation>().ToTable("PaymentAllocation",t=>t.HasCheckConstraint("CK_Allocation_Target","num_nonnulls(\"SaleId\", \"PurchaseId\", \"ExistingDueId\") = 1 AND \"Amount\" > 0"));
         m.Entity<LedgerEntry>().ToTable("LedgerEntry",t=>t.HasCheckConstraint("CK_Ledger_Amounts","\"Debit\" >= 0 AND \"Credit\" >= 0 AND ((\"Debit\" > 0 AND \"Credit\" = 0) OR (\"Debit\" = 0 AND \"Credit\" > 0))"));
         m.Entity<StockBalance>().ToTable("StockBalance",t=>t.HasCheckConstraint("CK_Balance_Positive","\"Quantity\" >= 0"));
         m.Entity<StockCostLayer>().ToTable("StockCostLayer",t=>t.HasCheckConstraint("CK_Layer_Quantity","\"RemainingQuantity\" >= 0 AND \"RemainingQuantity\" <= \"ReceivedQuantity\" AND \"UnitCost\" >= 0"));

@@ -6,6 +6,8 @@ A retail workspace for mobile/electronics stores: **one business per PostgreSQL 
 
 The combined Phase 1/2 application includes catalog and taxes, serialized/quantity stock, purchasing, scanner billing, customer/supplier accounts, payments and advances, returns/cancellations/refunds, LenDen, transfers, used devices/exchanges, expenses, reports, reviewed CSV imports/exports, private documents, staff access, and audit history. Posted corrections append linked records; financial and inventory posting is transactional and idempotent.
 
+For old unpaid phone down payments and paper/Excel registers, use **LenDen → Collections & promises**. See [existing dues, CSV import, payments and reviewed reminders](docs/lenden-collections.md).
+
 Start with [product rules and correction specification](spec.md). See [implementation status](docs/implementation-status.md), [architecture](docs/design-review.md), [authentication](docs/authentication.md), and [deployment/recovery](docs/deployment.md).
 
 For shop operators, read [daily flow, ledger direction, data storage and security](docs/owner-guide.md). For Windows, use `InvoraSetup.exe` and the [installation guide](docs/windows-installation.md); Docker Desktop is required. The source ZIP/CMD launchers remain available. See [commercial installation, paid licences and renewal](docs/commercial-release.md) for selling the app and keeping vendor signing keys private.
@@ -54,5 +56,11 @@ For daily use, see [counter workflows](docs/counter-workflows.md).
 
 Invoices can be found by customer name, either phone number, tax-invoice number or shop reference. Dated shop references such as `INV-SP-MAIN-07Oct26-000001` accompany a shorter GST invoice number; the PDF records the actual issue time and place of supply. Inventory filters include brand and stock status. Account screens distinguish **Lena hai** (receive) from **Dena hai** (pay), including supplier credits and separate sales/independent LenDen balances.
 
-Create a Windows release with `python3 scripts/package-windows.py`. It packages application source, locked dependencies, launchers and documentation into `artifacts/Invora-Windows-local.zip`, with file hashes, excluding private configuration, generated files and business records.
+Build the Windows desktop host, then create a release with `python3 scripts/package-windows.py`; see the commands in [commercial release](docs/commercial-release.md). Use `--source-only` only for an intentional browser-only source ZIP. It packages application source, locked dependencies, launchers and documentation into `artifacts/Invora-Windows-local.zip`, with file hashes, excluding private configuration, generated files and business records.
 # invora
+
+Missing an accessory from inventory while billing? **New sale → Add product here** records the counted stock and adds it to the bill. Name, category, price, quantity and cost are enough once category billing defaults are configured. See [product entry and category defaults](docs/product-entry.md).
+
+Stock values now show the **original purchase amount including tax**, with **Cost for profit** shown separately. A phone bought for ₹84,999 including GST displays ₹84,999 in the money picture, inventory and reports. See [how stock values work](docs/stock-values.md).
+
+Invora now opens in its own [Mac/Windows window](docs/desktop-app.md). Inventory and the quantity-product catalog support [reusable thermal QR stickers](docs/item-labels.md): preview, batch print, reprint, and scan into billing or inventory search.

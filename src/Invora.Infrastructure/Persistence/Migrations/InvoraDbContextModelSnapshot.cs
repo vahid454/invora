@@ -623,6 +623,67 @@ namespace Invora.Infrastructure.Persistence.Migrations
                     b.ToTable("DocumentSequence");
                 });
 
+            modelBuilder.Entity("Invora.Domain.Modules.Retail.ExistingDue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("FinanceReference")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("BranchId", "Reference")
+                        .IsUnique();
+
+                    b.HasIndex("BranchId", "CustomerId", "DueDate");
+
+                    b.ToTable("ExistingDue", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ExistingDue_Amount", "\"Amount\" > 0 AND \"DueDate\" >= \"BusinessDate\"");
+                        });
+                });
+
             modelBuilder.Entity("Invora.Domain.Modules.Retail.Expense", b =>
                 {
                     b.Property<Guid>("Id")
@@ -818,6 +879,9 @@ namespace Invora.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("DeviceAcquisitionId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ExistingDueId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -856,6 +920,8 @@ namespace Invora.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DeviceAcquisitionId");
+
+                    b.HasIndex("ExistingDueId");
 
                     b.HasIndex("PartyId");
 
@@ -1144,6 +1210,9 @@ namespace Invora.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("ExistingDueId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("PaymentId")
                         .HasColumnType("uuid");
 
@@ -1159,6 +1228,8 @@ namespace Invora.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ExistingDueId");
+
                     b.HasIndex("PaymentId");
 
                     b.HasIndex("PurchaseId");
@@ -1167,7 +1238,7 @@ namespace Invora.Infrastructure.Persistence.Migrations
 
                     b.ToTable("PaymentAllocation", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Allocation_Target", "(\"SaleId\" IS NULL) <> (\"PurchaseId\" IS NULL) AND \"Amount\" > 0");
+                            t.HasCheckConstraint("CK_Allocation_Target", "num_nonnulls(\"SaleId\", \"PurchaseId\", \"ExistingDueId\") = 1 AND \"Amount\" > 0");
                         });
                 });
 
@@ -1192,6 +1263,9 @@ namespace Invora.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ExistingDueId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -1208,6 +1282,9 @@ namespace Invora.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("PromiseDate")
                         .HasColumnType("date");
 
+                    b.Property<Guid?>("SaleId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Version")
                         .IsConcurrencyToken()
                         .HasColumnType("integer");
@@ -1216,9 +1293,16 @@ namespace Invora.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CustomerId");
 
+                    b.HasIndex("ExistingDueId");
+
+                    b.HasIndex("SaleId");
+
                     b.HasIndex("BranchId", "CustomerId", "CreatedAtUtc");
 
-                    b.ToTable("PaymentFollowUp");
+                    b.ToTable("PaymentFollowUp", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_FollowUp_Target", "num_nonnulls(\"SaleId\", \"ExistingDueId\") <= 1");
+                        });
                 });
 
             modelBuilder.Entity("Invora.Domain.Modules.Retail.ProductCategory", b =>
@@ -2339,6 +2423,21 @@ namespace Invora.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Invora.Domain.Modules.Retail.ExistingDue", b =>
+                {
+                    b.HasOne("Invora.Domain.Modules.Businesses.Branch", null)
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Invora.Domain.Modules.Retail.Party", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Invora.Domain.Modules.Retail.Expense", b =>
                 {
                     b.HasOne("Invora.Domain.Modules.Businesses.Branch", null)
@@ -2412,6 +2511,11 @@ namespace Invora.Infrastructure.Persistence.Migrations
                     b.HasOne("Invora.Domain.Modules.Retail.DeviceAcquisition", null)
                         .WithMany()
                         .HasForeignKey("DeviceAcquisitionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Invora.Domain.Modules.Retail.ExistingDue", null)
+                        .WithMany()
+                        .HasForeignKey("ExistingDueId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Invora.Domain.Modules.Retail.Party", null)
@@ -2497,6 +2601,11 @@ namespace Invora.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Invora.Domain.Modules.Retail.PaymentAllocation", b =>
                 {
+                    b.HasOne("Invora.Domain.Modules.Retail.ExistingDue", null)
+                        .WithMany()
+                        .HasForeignKey("ExistingDueId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Invora.Domain.Modules.Retail.Payment", null)
                         .WithMany()
                         .HasForeignKey("PaymentId")
@@ -2527,6 +2636,16 @@ namespace Invora.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Invora.Domain.Modules.Retail.ExistingDue", null)
+                        .WithMany()
+                        .HasForeignKey("ExistingDueId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Invora.Domain.Modules.Retail.Sale", null)
+                        .WithMany()
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Invora.Domain.Modules.Retail.ProductModel", b =>

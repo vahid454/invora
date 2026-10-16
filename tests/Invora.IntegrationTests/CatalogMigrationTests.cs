@@ -28,6 +28,9 @@ public sealed class CatalogMigrationTests
         var model=new ProductModel{Name="Migration phone",Brand="Fixture",Category="Mobile",Hsn="85171300",TaxRateId=tax.Id};var variant=new ProductVariant{ProductModelId=model.Id,Sku="MIGRATION-PHONE",Serialized=true};var unit=new StockUnit{BranchId=branch.Id,ProductVariantId=variant.Id};owner.AddRange(model,variant,unit);await owner.SaveChangesAsync();
         runtime.Add(new DeviceCorrection{StockUnitId=unit.Id,BranchId=branch.Id,ActorId=Guid.NewGuid(),Reason="Restricted runtime correction"});await runtime.SaveChangesAsync();Assert.Single(await runtime.Set<DeviceCorrection>().ToArrayAsync());
         var correctionDelete=await Assert.ThrowsAsync<PostgresException>(()=>owner.Database.ExecuteSqlRawAsync("DELETE FROM \"DeviceCorrection\""));Assert.Equal("23514",correctionDelete.SqlState);
+        var due=new ExistingDue{BranchId=branch.Id,CustomerId=party.Id,ActorId=Guid.NewGuid(),Reference="MIG-OLD",Description="Opening down payment",Amount=100,BusinessDate=new DateOnly(2026,9,1),DueDate=new DateOnly(2026,10,20)};
+        runtime.Add(due);await runtime.SaveChangesAsync();Assert.Single(await runtime.Set<ExistingDue>().ToArrayAsync());
+        var dueDelete=await Assert.ThrowsAsync<PostgresException>(()=>owner.Database.ExecuteSqlRawAsync("DELETE FROM \"ExistingDue\""));Assert.Equal("23514",dueDelete.SqlState);
         Assert.Equal("9000000051",(await runtime.Set<Party>().SingleAsync()).AlternatePhone);
         var history=await Assert.ThrowsAsync<PostgresException>(()=>owner.Database.ExecuteSqlRawAsync("DELETE FROM \"PaymentFollowUp\""));Assert.Equal("23514",history.SqlState);
         Assert.True(await owner.Set<Brand>().AnyAsync(x=>x.NormalizedName=="RUNTIME CUSTOM BRAND"));

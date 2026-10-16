@@ -119,3 +119,12 @@ button:disabled{cursor:not-allowed;opacity:.55}
 .sale-payment-summary .summary-row strong{white-space:nowrap}
 .sale-payment-summary .small{margin:10px 0 0;line-height:1.6}
 @media(max-width:600px){.followup-filters>label,.followup-filters>label:first-child{flex:1 1 100%;min-width:0}.invoice-date-filters{padding:16px}.invoice-date-filters label{flex:1 1 140px;min-width:0}.invoice-date-filters label:first-child{flex-basis:100%}.invoice-date-filters button{width:100%}}
+
+/* Purchase amount is the owner-facing value; preserve a distinct profit cost basis. */
+.financial-panel .stock-value-row{align-items:flex-start;flex-wrap:wrap;gap:8px 16px}
+.stock-value-row dt small,.stock-value-row dd small{display:block;font-size:10px;line-height:1.5;font-weight:400;margin-top:5px;color:var(--muted)}
+.stock-value-row dd{margin-left:auto;text-align:right}
+.stock-purchase-value{display:block;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stock-book-value{display:block;margin-top:4px;font-size:10px;color:var(--muted);white-space:nowrap}
+
+.counter-accessory-entry{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 18px}.trade-items .counter-accessory-entry{margin:16px 24px}.counter-accessory-entry .small{flex:1 1 230px}.counter-accessory-entry button{min-height:44px}@media(max-width:600px){.trade-items .counter-accessory-entry{margin:16px}.counter-accessory-entry .small{flex-basis:100%}}

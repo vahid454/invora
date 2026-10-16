@@ -1,0 +1,30 @@
+import {test,expect} from '@playwright/test';
+import {ownerSession} from './session';
+
+test.skip(!process.env['INVORA_E2E_ENV'],'Requires an isolated database.');
+test('purchase value includes tax across the money picture, inventory, reports and CSV',async({page,request})=>{
+ test.setTimeout(90000);
+ const session=await ownerSession(request,{tradeName:'Isolated Counter Test Store',branchCode:'MAIN',branchName:'Test counter',ownerLogin:'browser-owner',ownerName:'Test Owner',password:'Browser-test-password-2026'});
+ const headers={Authorization:'Bearer '+session.accessToken};
+ const post=async(path:string,data:unknown)=>{const response=await request.post('/api/v1'+path,{headers:{...headers,'Idempotency-Key':crypto.randomUUID()},data});expect(response.ok(),await response.text()).toBeTruthy();return response.json();};
+ const settings=await request.put('/api/v1/settings',{headers:{...headers,'Idempotency-Key':crypto.randomUUID()},data:{legalName:'Valuation test store',address:'Synthetic test address, Madhya Pradesh',gstin:'23ABCDE1234F1Z5',gstRegistered:true}});expect(settings.ok(),await settings.text()).toBeTruthy();
+ const stamp=Date.now(),today=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});
+ const createdBranch=await post('/branches',{code:'V'+String(stamp).slice(-10),name:'Valuation counter '+stamp}),branch=createdBranch.id;
+ const tax=await post('/tax-rates',{name:'Valuation GST '+stamp,rate:'18'});
+ const supplier=await post('/suppliers',{name:'Value supplier '+stamp,phone:'9000000091'});
+ const product=await post('/products',{name:'Galaxy value '+stamp,brand:'Samsung',category:'Mobile',hsn:'85171300',taxRateId:tax,sku:'VALUE-'+stamp,ram:'8GB',storage:'256GB',color:'Blue',serialized:true,sellingPrice:'90000',mrp:'95000'});
+ const purchase=await post('/purchases',{branchId:branch,supplierId:supplier,supplierInvoice:'VALUE-'+stamp,businessDate:today,items:[{productVariantId:product,quantity:1,unitCost:'84999',discount:'0',taxInclusive:true,devices:[{imei1:String(stamp)+'01'}]}]});await post('/purchases/'+purchase.id+'/complete',{});
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/login');await page.getByLabel('Login',{exact:true}).fill('browser-owner');await page.getByLabel('Password',{exact:true}).fill('Browser-test-password-2026');await page.getByRole('button',{name:'Sign in →'}).click();await expect(page).toHaveURL(/\/$/);await page.getByLabel('Active branch',{exact:true}).selectOption(branch);
+ const stock=page.locator('.stock-value-row');await expect(stock).toContainText('₹84,999.00');await expect(stock).toContainText('Cost for profit: ₹72,033.05');await expect(stock).toContainText('incl. tax');
+ await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:'../artifacts/stock-value-dashboard.png',fullPage:true,animations:'disabled'});
+ await page.setViewportSize({width:375,height:812});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();await page.screenshot({path:'../artifacts/stock-value-mobile.png',fullPage:true,animations:'disabled'});
+ await page.setViewportSize({width:1440,height:1000});await page.goto('/inventory?search=VALUE-'+stamp);await expect(page.locator('tbody tr')).toHaveCount(1);await expect(page.locator('.stock-purchase-value')).toHaveText('₹84,999.00');await expect(page.locator('.stock-book-value')).toContainText('₹72,033.05');
+ await page.getByRole('button',{name:'Stock aging',exact:true}).click();await expect(page.locator('.stock-purchase-value')).toHaveText('₹84,999.00');
+ const csvPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export CSV ↓',exact:true}).click();const csv=await csvPromise;await csv.saveAs('../artifacts/stock-value-inventory.csv');
+ const cable=await post('/products',{name:'Value cable '+stamp,brand:'Generic',category:'Accessories',hsn:'8544',taxRateId:tax,sku:'VALUE-CABLE-'+stamp,ram:'',storage:'',color:'',serialized:false,sellingPrice:'200',mrp:'250'});
+ const batch=await post('/purchases',{branchId:branch,supplierId:supplier,supplierInvoice:'VALUE-CABLE-'+stamp,businessDate:today,items:[{productVariantId:cable,quantity:3,unitCost:'118',discount:'0',taxInclusive:true}]});await post('/purchases/'+batch.id+'/complete',{});
+ await page.getByRole('button',{name:'Quantity stock',exact:true}).click();await page.getByRole('textbox',{name:'Search directory'}).fill('VALUE-CABLE-'+stamp);await expect(page.locator('.stock-purchase-value')).toHaveText('₹354.00');await expect(page.locator('.stock-book-value')).toContainText('₹300.00');await expect(page.getByRole('columnheader',{name:'Selling price / unit'})).toBeVisible();
+ await page.goto('/reports');const purchaseCard=page.locator('.kpi').filter({has:page.getByText('AVAILABLE STOCK · INCL. TAX',{exact:true})});await expect(purchaseCard).toContainText('₹85,353.00');const costCard=page.locator('.kpi').filter({has:page.getByText('STOCK COST FOR PROFIT',{exact:true})});await expect(costCard).toContainText('₹72,333.05');
+ await page.screenshot({path:'../artifacts/stock-value-reports.png',fullPage:true,animations:'disabled'});const reportPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Export summary CSV'}).click();await (await reportPromise).saveAs('../artifacts/stock-value-report.csv');
+ expect(errors).toEqual([]);
+});

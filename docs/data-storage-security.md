@@ -4,9 +4,9 @@ Invora stores one business in a PostgreSQL database, with branches inside it. In
 
 ## What happens when you save
 
-The browser sends the sale or payment to the .NET API. The API checks the signed-in user's permissions and branch, recalculates amounts and tax, validates available stock, and saves the related invoice, stock, payment, ledger and audit entries together in one PostgreSQL transaction. A failed posting rolls back those entries. Request keys prevent the same successful request retry from double-posting.
+The browser or dedicated desktop window sends the sale or payment to the .NET API. The API checks the signed-in user's permissions and branch, recalculates amounts and tax, validates available stock, and saves the related invoice, stock, payment, ledger and audit entries together in one PostgreSQL transaction. A failed posting rolls back those entries. Request keys prevent the same successful request retry from double-posting.
 
-The browser displays saved records from the API. Closing a tab does not delete them. Invoice snapshots are saved in the database; PDFs can be generated again even if the original download was lost. Supplier/expense uploads are separate private files and need a separate archive alongside the database backup.
+The browser or dedicated desktop window displays saved records from the API. Closing a tab does not delete them. Invoice snapshots are saved in the database; PDFs can be generated again even if the original download was lost. Supplier/expense uploads are separate private files and need a separate archive alongside the database backup.
 
 | Information | Storage in the local installation |
 |---|---|
@@ -15,7 +15,7 @@ The browser displays saved records from the API. Closing a tab does not delete t
 | DB password, session-signing secret and first-setup secret | Private `.env` in the installation directory |
 | Fresh Mac installation files/config | `~/Library/Application Support/Invora` |
 | Fresh Windows installation files/config | `%LOCALAPPDATA%\Invora` |
-| Downloaded PDFs/CSVs | The browser's selected download folder; these copies need their own access protection |
+| Downloaded PDFs/CSVs | The selected native/browser download folder; these copies need their own access protection |
 | Vendor licence-signing private key | Vendor machine only; never in a customer release |
 
 On Docker Desktop, volumes are inside its managed Linux VM disk. Docker Desktop's Volumes and storage settings identify their current location; a hardcoded host path may be wrong after moving Docker's disk image. [Docker's recovery guide](https://docs.docker.com/desktop/settings-and-maintenance/backup-and-restore/) explains VM/volume recovery. Copying the EXE, app, source directory or container image alone does not back up these records.
@@ -52,3 +52,9 @@ The local operational reset retained owner/staff accounts and grants, shop/branc
 A private recovery snapshot was created under `.private-backups/before-clean-<UTC timestamp>` in the original workspace. Its database dump was restored into a temporary database, checked against the original table hashes/counts and reconciled; the selective reset was rehearsed there before touching live records. Preserved tables were verified again after reset, and all 32 operational tables and the document volume were confirmed empty. A new maintenance audit entry records the reset. No other application's database or Docker volumes were changed.
 
 This one-time snapshot contains `database.dump`, `documents.tar.gz`, `configuration.env`, checksums, table hashes/counts and recovery notes. It has private local permissions but **is not itself encrypted**. Prior data also remains in retained audit history and recovery backups; this was a shop-data reset, not a secure-erasure operation. These folders are excluded from source packages and Docker builds. Do not distribute the snapshot with the software. Keep it only for the agreed recovery period and protect any off-computer copy.
+
+## Dedicated window and printed QR codes
+
+Mac uses a persistent WebKit website profile; Windows uses `%LOCALAPPDATA%\Invora Desktop\WebView2`. These profiles hold session cookies/cache, not the primary stock/accounting database. Access tokens remain in application memory; refresh cookies still use the existing session controls. Sign out on a shared computer, use separate OS accounts, and protect the disk. The window itself does not add database encryption. It accepts only the configured local origin, has no JavaScript-to-native file bridge, and opens approved external links in the system browser. Downloaded invoices, CSVs and item labels are ordinary local files protected by the chosen folder's permissions.
+
+Item QR codes contain only a typed, permanent stock-unit or product ID. Model and identity text is printed on the sticker, so anyone holding the item can read it. No customer data, credentials, purchase cost or selling price is encoded. QR lookup requires an authenticated user with inventory permission and authorized branch access. Copying a sticker does not create stock or permit a second sale of a sold unit. Labels are generated locally; no external QR service receives identifiers. Preserve the database during restore/migration so existing labels continue to resolve.

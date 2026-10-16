@@ -23,3 +23,12 @@ WHERE COALESCE((SELECT SUM(r."Quantity") FROM "SaleReturnItem" r WHERE r."SaleIt
 SELECT 'quantity_movements' AS check_name,b."BranchId",b."ProductVariantId",b."Quantity",COALESCE(SUM(m."Quantity"),0) AS expected
 FROM "StockBalance" b LEFT JOIN "InventoryMovement" m ON m."BranchId"=b."BranchId" AND m."ProductVariantId"=b."ProductVariantId"
 GROUP BY b."BranchId",b."ProductVariantId",b."Quantity" HAVING b."Quantity"<>COALESCE(SUM(m."Quantity"),0);
+SELECT 'existing_due_ledger' AS check_name,d."Id",d."Amount" FROM "ExistingDue" d
+WHERE (SELECT COUNT(*) FROM "LedgerEntry" e WHERE e."ExistingDueId"=d."Id" AND e."Kind"='OpeningDue')<>1
+OR NOT EXISTS(SELECT 1 FROM "LedgerEntry" e WHERE e."ExistingDueId"=d."Id" AND e."Kind"='OpeningDue' AND e."Debit"=d."Amount" AND e."Credit"=0 AND e."BranchId"=d."BranchId" AND e."PartyId"=d."CustomerId");
+SELECT 'existing_due_allocation' AS check_name,d."Id",d."Amount",COALESCE(SUM(a."Amount"-COALESCE((SELECT SUM(v."Amount") FROM "AllocationReversal" v WHERE v."PaymentAllocationId"=a."Id"),0)),0) AS allocated
+FROM "ExistingDue" d LEFT JOIN "PaymentAllocation" a ON a."ExistingDueId"=d."Id"
+GROUP BY d."Id",d."Amount" HAVING COALESCE(SUM(a."Amount"-COALESCE((SELECT SUM(v."Amount") FROM "AllocationReversal" v WHERE v."PaymentAllocationId"=a."Id"),0)),0)>
+CASE WHEN EXISTS(SELECT 1 FROM "LedgerEntry" e WHERE e."ExistingDueId"=d."Id" AND e."Kind"='OpeningDueReversal') THEN 0 ELSE d."Amount" END;
+SELECT 'existing_due_payment_scope' AS check_name,a."Id" FROM "PaymentAllocation" a JOIN "ExistingDue" d ON d."Id"=a."ExistingDueId" JOIN "Payment" p ON p."Id"=a."PaymentId"
+WHERE p."BranchId"<>d."BranchId" OR p."PartyId"<>d."CustomerId" OR p."Direction"<>'In';

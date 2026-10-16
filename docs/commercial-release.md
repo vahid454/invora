@@ -1,10 +1,12 @@
 # Selling and licensing Invora
 
+Version 1.3.0 adds the [LenDen collection register](lenden-collections.md), reviewed old-dues import and manual reminder queue. Updates run an additive database migration; retain the shop's existing configuration and volumes. Back up before updating. Opening balances post on the recording day while keeping the original register date for reference.
+
 ## What the shop receives
 
 Deliver `InvoraSetup.exe`, the [Windows instructions](windows-installation.md), your support/contact details and the licence file issued for that shop. Install Docker Desktop first, run the installer, create the owner's login, and open **Shop licence** to copy the Shop ID. After you collect the agreed payment, issue a licence for that ID. The owner pastes the `INVORA1…` key at `/license`. No owner password, database password or setup key is sent to you for licensing.
 
-The installer contains the application release and bundled .NET installer runtime. It installs application files and Start/Stop/Check shortcuts, then builds/starts the Linux containers. **Check Invora** produces a report without collecting configuration values or shop records, for owner-led support. Docker Desktop, virtualization/WSL, internet for first build and a suitable Windows x64 PC remain prerequisites. It is not a Docker-free desktop database executable. The Windows executable is cross-published from .NET; see Microsoft's [single-file deployment documentation](https://learn.microsoft.com/en-us/dotnet/core/deploying/single-file/overview). Complete the [native Windows acceptance record](windows-acceptance.md) and sign the final executable with your own trusted Windows code-signing certificate before public distribution; no certificate or signature is fabricated here.
+The installer contains the application release, dedicated Windows WebView2 host and bundled .NET runtimes. It installs application files and Start/Stop/Check shortcuts, then builds/starts the Linux containers. **Check Invora** produces a report without collecting configuration values or shop records, for owner-led support. Docker Desktop, virtualization/WSL, internet for first build and a suitable Windows x64 PC remain prerequisites. It is not a Docker-free desktop database executable. The Windows executable is cross-published from .NET; see Microsoft's [single-file deployment documentation](https://learn.microsoft.com/en-us/dotnet/core/deploying/single-file/overview). Complete the [native Windows acceptance record](windows-acceptance.md) and sign the final executable with your own trusted Windows code-signing certificate before public distribution; no certificate or signature is fabricated here.
 
 For Mac customers, deliver **`Invora-Mac.dmg`** (or the ZIP), its SHA-256 sidecar and the [Mac installation guide](macos-installation.md). The native universal app requires Docker Desktop and uses the same signed Shop ID licence flow. Its current ad-hoc signature is for local integrity checking; obtain Developer ID signing and Apple notarization before broad public distribution. No database, backup, private `.env` or vendor signing key is included.
 
@@ -52,6 +54,9 @@ This application now provides installation, signed activation and renewal. Custo
 ## Build the customer release
 
 ```sh
+dotnet publish tools/Invora.Desktop -c Release -r win-x64 --self-contained true \
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+  -p:EnableCompressionInSingleFile=true -p:DebugType=None -o artifacts/windows-desktop
 python3 scripts/package-windows.py
 dotnet publish tools/Invora.Setup -c Release -r win-x64 --self-contained true \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
@@ -61,3 +66,5 @@ dotnet publish tools/Invora.Setup -c Release -r win-x64 --self-contained true \
 Copy `artifacts/windows-installer/InvoraSetup.exe` to `artifacts/InvoraSetup.exe` for delivery. Repackage before publishing so the embedded release contains the final application and public policy. `--verify-package` validates the embedded archive; it does not install anything. The installer checks every source file hash and path before extracting, rejects private `.env`/licence files and linked destinations, preserves an existing `.env`, and never removes Docker volumes. File hashes detect corruption; they do not replace executable code signing.
 
 For Mac, build on macOS with `python3 scripts/package-macos.py`; see the Mac guide for build prerequisites and remaining platform acceptance. Never embed customer data or private vendor keys when rebuilding either platform release.
+
+Both platforms open the shop in a dedicated application window. Windows requires the Evergreen WebView2 Runtime; Mac uses system WebKit. Local PostgreSQL still runs in Docker. Include the [desktop guide](desktop-app.md) and [thermal sticker instructions](item-labels.md) with shop onboarding. Verify a real label print and scan before handing over.
