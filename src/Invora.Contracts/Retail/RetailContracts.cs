@@ -43,8 +43,8 @@ public sealed record BrandRequest(string Name);
 public sealed record DeviceStockLine(DeviceCapture Device, string Ram, string Storage, string Color, decimal UnitCost, decimal SellingPrice, decimal Mrp);
 public sealed record DeviceStockBatchRequest(Guid BranchId, Guid ProductVariantId, string Reason, DeviceStockLine[] Devices);
 
-public sealed record CategoryRequest(string Name, bool RequiresImei = false);
-public sealed record CategoryView(string Name, bool RequiresImei);
+public sealed record CategoryRequest(string Name, bool RequiresImei = false, string? Group = null);
+public sealed record CategoryView(string Name, bool RequiresImei, string Group);
 
 public sealed record OldDeviceDetails(string Name, string Brand = "", string Ram = "", string Storage = "", string Color = "");
 public sealed record ProductPurchaseRequest(ProductRequest Product, int Quantity, decimal UnitCost, DeviceStockLine[]? DeviceStock = null);
@@ -65,7 +65,7 @@ public sealed record QuickAccessoryResult(ProductView Product, int QuantityAdded
 public sealed record ExistingDueRequest(Guid BranchId, Guid CustomerId, string Reference, string Description, string FinanceReference, decimal Amount, DateOnly BusinessDate, DateOnly DueDate);
 public sealed record ExistingDueImportRequest(Guid BranchId, string Csv);
 public sealed record ExistingDueImportRow(string Name, string Phone, string AlternatePhone, string Reference, string Description, string FinanceReference, decimal Amount, DateOnly BusinessDate, DateOnly DueDate, Guid? CustomerId);
-public sealed record CollectionRow(Guid Id, string Kind, Guid CustomerId, string CustomerName, string Phone, string AlternatePhone, string Reference, string Description, string FinanceReference, DateOnly BusinessDate, DateOnly? DueDate, decimal Amount, decimal Paid, decimal Outstanding, decimal AccountBalance, decimal UnallocatedCredit, bool Cancelled, DateOnly? PromiseDate, DateOnly? NextContactDate);
+public sealed record CollectionRow(Guid Id, string Kind, Guid CustomerId, string CustomerName, string Phone, string AlternatePhone, string Reference, string Description, string FinanceReference, DateOnly BusinessDate, DateOnly? DueDate, decimal Amount, decimal Paid, decimal Outstanding, decimal AccountBalance, decimal UnallocatedCredit, bool Cancelled, DateOnly? PromiseDate, DateOnly? NextContactDate, string SafetyStatus = "Clear");
 
 public sealed record AllocateCustomerCreditRequest(Guid BranchId, Guid CustomerId);
 

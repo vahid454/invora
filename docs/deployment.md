@@ -31,7 +31,7 @@ Use immutable release tags through `INVORA_TAG` in a deployment pipeline. For mi
 
 ## Backups
 
-`scripts/backup.sh` creates a PostgreSQL custom dump and document archive, encrypts them with a random AES key protected by an RSA-OAEP recipient key, and signs the encrypted key/IV/payload with a separate signing key. Backups are private by default (`umask 077`). Keep the recipient private key and trusted signing public key separate from the host's backup output.
+`scripts/backup.sh` creates and structurally checks a PostgreSQL custom dump and document archive, encrypts them with a random AES key protected by an RSA-OAEP recipient key, and signs the encrypted key/IV/payload with a separate signing key. It writes a unique private archive, checks its contents and removes incomplete output on failure. Backups are private by default (`umask 077`). Keep the recipient private key and trusted signing public key separate from the host's backup output.
 
 Set:
 

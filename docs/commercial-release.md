@@ -1,6 +1,8 @@
 # Selling and licensing Invora
 
-Version 1.3.0 adds the [LenDen collection register](lenden-collections.md), reviewed old-dues import and manual reminder queue. Updates run an additive database migration; retain the shop's existing configuration and volumes. Back up before updating. Opening balances post on the recording day while keeping the original register date for reference.
+Version 1.3.2 presents [LenDen as one customer register](lenden-collections.md), with gross money directions, invoice/old-due promises on the same page, visible address entry and three persisted category groups. It includes the earlier collection register and internal safety flags. Updates run additive migrations; retain the shop's existing configuration and volumes. Back up before updating. Opening balances post on the recording day while keeping the original register date for reference.
+
+The Mac and Windows 1.3.2 packages are built from the same release source. The Windows executable is cross-published and its embedded archive is verified on Mac; native Windows acceptance and signing remain required before public delivery.
 
 ## What the shop receives
 

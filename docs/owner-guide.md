@@ -99,4 +99,4 @@ In **New sale**, enter the actual cash, UPI and card amounts received; leave unu
 
 ## Old register and remaining down payments
 
-Use **LenDen → Collections & promises** to enter/import amounts already owed to the shop, track a promised date per entry, receive partial payments and export a collection list with both customer phone numbers. Use its reviewed reminder queue to prepare WhatsApp/SMS drafts. Existing invoices appear automatically; do not bring them forward twice. Read [the collection guide](lenden-collections.md) before importing.
+Use **LenDen → Invoices, old dues & promises** to enter/import amounts already owed to the shop, track a promised date per entry, receive partial payments and export a collection list with both customer phone numbers. Use its reviewed reminder queue to prepare WhatsApp/SMS drafts. Existing invoices appear automatically; do not bring them forward twice. Read [the collection guide](lenden-collections.md) before importing.

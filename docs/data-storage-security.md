@@ -41,9 +41,17 @@ The setup key creates the first owner and is closed after setup. The signed comm
 
 ## Backups that can recover the shop
 
-Back up **the database, uploads and private configuration**, keeping matching versions. Stop API/web during the snapshot so uploads and their database entries agree; keep the database running. The supplied `scripts/backup.sh` encrypts and signs the database-plus-documents archive, and `scripts/restore.sh` verifies it before restoring into a new isolated database. Configure the recipient/signing keys first, and preserve the necessary private decryption key and trusted verification key separately from backup output.
+Back up **the database, uploads and private configuration**, keeping matching versions. Stop API/web during the snapshot so uploads and their database entries agree; keep the database running. The supplied `scripts/backup.sh` checks the database dump and document archive before encrypting/signing them, checks the final archive, and removes an incomplete output if any step fails. `scripts/restore.sh` verifies its signature before restoring into a new isolated database. Configure the recipient/signing keys first, and preserve the necessary private decryption key and trusted verification key separately from backup output. A structurally valid archive still needs a real restore rehearsal.
 
 Store multiple backup generations off the shop computer, protect `.env` separately, and rehearse restoration and reconciliation. A backup on the same disk cannot recover a lost or failed disk. Schedules, off-host transfer and failure alerts are not automatic in the desktop launcher; they must be configured for the shop. See [backup and restore instructions](deployment.md#backups).
+
+## Moving to another Mac or Windows PC
+
+1. Stop entering sales/payments on the old computer. Keep Docker's database running, stop API/web, and create a current encrypted database-and-documents backup. Copy the matching private `.env`, the required decryption/verification keys and the backup to protected **off-device** storage. Check the backup timestamp and retain older generations.
+2. Install Invora and Docker Desktop on the new computer. Do not create a new shop or issue a new owner login. Restore the archive into an **isolated** database and document folder first, run `scripts/reconcile.sql`, compare key counts/balances, and verify an invoice PDF and an uploaded bill. The restore script deliberately never overwrites the live database.
+3. Only after those checks, plan the cutover to the new Docker database/document volumes with the original `.env` and restored Shop ID. Verify login, inventory, invoices, LenDen and licence. Keep the old computer read-only until the new one is accepted; do not let two independent copies take new transactions.
+
+The desktop app has **no automatic cross-device synchronization or automatic off-site backup**. Records can be lost after disk failure, Docker volume removal, malware or an unbacked-up device move. No software can guarantee “never lost”; the practical protection is scheduled off-device backups, alerts for missed backups, and periodic tested restores. The signed shop licence is not a backup or an encryption key.
 
 ## Owner-requested cleanup on 8 October 2026
 

@@ -9,6 +9,9 @@ Agreed scope: 7 October 2026. Invora serves a mobile/electronics shop owner, co-
 - Post sales, purchases, returns, exchanges, transfers and payments transactionally and idempotently. Corrections preserve original stock movements, invoice snapshots, payments and ledger entries.
 - Record the full payment received/paid. Invoice selection is optional; automatic allocation settles oldest branch dues, a selected invoice receives at most its remaining dues, and excess stays on account. Independent LenDen is a separate account.
 - Show customer/supplier money direction clearly: money to receive (lena hai), money to pay (dena hai), with separate accounts and linked reversals/refunds.
+- Present LenDen as one customer register with gross **Lena hai** and **Dena hai**, source amounts for sales/old dues and independent money, and invoice/old-due promises on the same page. Opposite-direction obligations must never disappear behind a single net figure or settle without an explicit posting.
+- Show the address immediately when adding a customer. Persist product category groups as Mobile, Electronics or Accessories; mobile group requires per-device IMEI tracking. Preserve custom category names within their chosen group.
+- Keep shop data on the local PostgreSQL and document volumes until a verified backup/restore moves it. A new-device install must not imply synchronization; preserve the original private configuration, licence/shop identity and matching database/documents, and verify recovery before cutover.
 
 ## Final warranty policy
 
@@ -108,3 +111,10 @@ Verify guarded edit permissions, stale requests, replay, history immutability, o
 - CSV import is a reviewed, actor-bound, branch-scoped, one-day preview (up to 500 rows). Validate all rows before commit, reject duplicate references and ambiguous/inconsistent phone/name matching, recheck matching and uniqueness at commit, and commit atomically/idempotently. No partial file import. Preview identifies newly created versus existing customers; preserve second contact numbers.
 - Collections includes customer phones, original amount, applied payments/exchange, outstanding amount, due/promise/follow-up dates, filters and CSV export. Account credit is shown separately; repeated customer balances must not be summed as document balances. Opening dues do not count as new sales or profit.
 - Guided WhatsApp reminders are drafts, one per selected customer with current unpaid trading dues for the branch. Refresh balances before preparing drafts, skip settled accounts and block customers with unallocated credit until reconciliation. Owner reviews and sends in WhatsApp. Opening a link never means sent/delivered. No automatic bulk messaging integration or actual customer messages are authorized here.
+
+## Internal customer safety
+
+- An owner or co-owner can mark a customer `Blocked` (blacklist) or `FraudConcern` with a required internal reason, then clear the flag with another reason. Every transition is an immutable actor-attributed audit event. The current status is shared across all branches of the one shop database.
+- Flagging never deletes invoices, dues, ledger entries, stock history or legitimate receipts. Customer lookup, accounts and collection reports continue to show the customer and clear **DO NOT CONTACT** warnings. Collection CSV suppresses both phone numbers for flagged customers.
+- Flagged customers cannot enter reminder queues, generate a contact draft, record a call/reminder/promise or schedule contact. The server rechecks immediately before opening an external call/message draft. New sales, outgoing independent LenDen and used-device acquisitions are blocked. Receiving old payments, internal notes and normal corrections remain available.
+- Flag text and reasons stay in the staff application and audit trail; they do not appear in customer invoices, receipts or statements. No automated messages or calls are sent.

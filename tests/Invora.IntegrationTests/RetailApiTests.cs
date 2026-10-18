@@ -183,7 +183,9 @@ public sealed partial class RetailApiTests : IAsyncLifetime
     }
     [Fact]public async Task CustomPhoneCategoryKeepsImeiTrackingAndCanBeFoundByRootMobileCategory()
     {
-        var created=await Post("/categories",new CategoryRequest("Feature phones",true));created.EnsureSuccessStatusCode();var category=await created.Content.ReadFromJsonAsync<CategoryView>();Assert.True(category!.RequiresImei);
+        var created=await Post("/categories",new CategoryRequest("Feature phones",true));created.EnsureSuccessStatusCode();var category=await created.Content.ReadFromJsonAsync<CategoryView>();Assert.True(category!.RequiresImei);Assert.Equal("Mobile",category.Group);
+        var accessory=await Post("/categories",new CategoryRequest("Phone cases",false,"Accessories"));accessory.EnsureSuccessStatusCode();Assert.Equal("Accessories",(await accessory.Content.ReadFromJsonAsync<CategoryView>())!.Group);
+        var categories=await client.GetFromJsonAsync<CategoryView[]>("/api/v1/categories");Assert.Contains(categories!,c=>c.Name=="Phone cases"&&c.Group=="Accessories"&&!c.RequiresImei);
         var duplicate=await Post("/categories",new CategoryRequest("feature phones",true));duplicate.EnsureSuccessStatusCode();Assert.Equal("Feature phones",(await duplicate.Content.ReadFromJsonAsync<CategoryView>())!.Name);
         Assert.Equal(HttpStatusCode.Conflict,(await Post("/categories",new CategoryRequest("Feature phones",false))).StatusCode);
         var basis=(await client.GetFromJsonAsync<ProductView>($"/api/v1/products/{phone}"))!;var request=new ProductRequest("Basic phone","Nokia","Feature phones","85171400",basis.TaxRateId,"FEATURE",null,"2 GB","32 GB","Blue",true,1500,1800);
@@ -276,6 +278,20 @@ public sealed partial class RetailApiTests : IAsyncLifetime
         await Id("/lenden/entries",new LenDenRequest(branch,customer,"In",100,1,date,"","Independent deposit"));
         Assert.Equal(HttpStatusCode.Conflict,(await Post("/payments",new PaymentRequest(branch,customer,1,1,date,"","Cannot refund independent deposit as invoice credit",[],true))).StatusCode);
         await using var scope=factory.Services.CreateAsyncScope();var db=scope.ServiceProvider.GetRequiredService<InvoraDbContext>();Assert.Equal(-100,await db.Set<LedgerEntry>().Where(x=>x.PartyId==customer && x.Kind.StartsWith("LenDen")).SumAsync(x=>x.Debit-x.Credit));Assert.Equal(1,await db.Set<PaymentAllocation>().CountAsync());
+    }
+    [Fact]public async Task CustomerRegisterShowsBothDirectionsWithoutNettingSeparateAccounts()
+    {
+        await Id("/lenden/existing-dues",new ExistingDueRequest(branch,customer,"OLD-DUE-SPLIT","Remaining shop down payment","",500,date,date.AddDays(10)));
+        await Id("/lenden/entries",new LenDenRequest(branch,customer,"In",200,1,date,"","Money held independently for customer"));
+        var report=await client.GetFromJsonAsync<JsonElement>($"/api/v1/lenden/accounts?branchId={branch}&search=9000000002");
+        var row=Assert.Single(report.GetProperty("items").EnumerateArray());
+        Assert.Equal(500,decimal.Parse(row.GetProperty("tradeBalance").GetString()!,System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(-200,decimal.Parse(row.GetProperty("independentBalance").GetString()!,System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(500,decimal.Parse(row.GetProperty("lenaHai").GetString()!,System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(200,decimal.Parse(row.GetProperty("denaHai").GetString()!,System.Globalization.CultureInfo.InvariantCulture));
+        var recent=await client.GetFromJsonAsync<JsonElement>($"/api/v1/customers/{customer}/ledger?branchId={branch}&recent=true&pageSize=1");
+        Assert.Equal(2,recent.GetProperty("totalItems").GetInt32());
+        Assert.Equal("LenDenReceived",Assert.Single(recent.GetProperty("items").EnumerateArray()).GetProperty("kind").GetString());
     }
     [Fact]public async Task PhoneLookupAcceptsCountryCodeAndLenDenRequiresExplicitTrustGrant()
     {

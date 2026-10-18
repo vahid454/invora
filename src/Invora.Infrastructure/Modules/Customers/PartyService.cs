@@ -17,7 +17,9 @@ public sealed class PartyService(RetailOperations r)
             if(System.Text.RegularExpressions.Regex.IsMatch(text,@"^[+\d ()-]+$")){var digits=new string(text.Where(char.IsAsciiDigit).ToArray());var local=text.StartsWith("+91",StringComparison.Ordinal)&&digits.StartsWith("91",StringComparison.Ordinal)&&digits.Length>2?digits[2..]:digits.Length>10?digits[^10..]:digits;q=q.Where(x=>(x.Phone.Contains(local)||x.AlternatePhone.Contains(local)));}
             else foreach(var term in System.Text.RegularExpressions.Regex.Split(text,@"\s+").Where(x=>x.Length>0)){q=q.Where(x=>x.Name.ToUpper().Contains(term)||x.Phone.Contains(term)||x.AlternatePhone.Contains(term));}
         }
-        var total=await q.LongCountAsync(ct);return new(await q.OrderBy(x=>x.Name).ThenBy(x=>x.Id).Skip((page-1)*size).Take(size).ToArrayAsync(ct),page,size,total);
+        var total=await q.LongCountAsync(ct);var items=await q.OrderBy(x=>x.Name).ThenBy(x=>x.Id).Skip((page-1)*size).Take(size).ToArrayAsync(ct);
+        if(kind==PartyKind.Customer){var statuses=await CustomerSafetyService.StatusesAsync(r.Db,items.Select(x=>x.Id),ct);foreach(var item in items)item.SafetyStatus=statuses.GetValueOrDefault(item.Id,"Clear");}
+        return new(items,page,size,total);
     }
     public async Task<object> SupplierAccountsAsync(Guid branch,int page,int size,string? search,string? filter,CancellationToken ct)
     {
@@ -43,7 +45,7 @@ public sealed class PartyService(RetailOperations r)
     },ct);
     public async Task<object> DetailAsync(Guid id,PartyKind kind,Guid branch,CancellationToken ct)
     {
-        await r.BranchAsync(branch,ViewPermission(kind),ct);var p=await r.PartyAsync(id,kind,ct);decimal? balance=null;
+        await r.BranchAsync(branch,ViewPermission(kind),ct);var p=await r.PartyAsync(id,kind,ct);if(kind==PartyKind.Customer)p.SafetyStatus=await CustomerSafetyService.StatusAsync(r.Db,id,ct);decimal? balance=null;
         if(kind==PartyKind.Supplier || r.Can("customers.credit.view"))balance=await r.BalanceAsync(branch,id,ct)*(kind==PartyKind.Supplier?-1:1);
         var notes=await r.Db.Set<PartyNote>().AsNoTracking().Where(x=>x.PartyId==id && x.BranchId==branch).OrderByDescending(x=>x.CreatedAtUtc).Take(50).ToArrayAsync(ct);
         var trade=balance is null?(decimal?)null:await r.TradingBalanceAsync(branch,id,ct)*(kind==PartyKind.Supplier?-1:1);
@@ -52,13 +54,13 @@ public sealed class PartyService(RetailOperations r)
     public Task<Guid> NoteAsync(Guid partyId,PartyKind kind,NoteRequest request,string key,CancellationToken ct)=>r.ExecuteAsync("party-note",key,new{partyId,request},async()=>{
         await r.BranchAsync(request.BranchId,ManagePermission(kind),ct);await r.PartyAsync(partyId,kind,ct);RetailOperations.Text(request.Text,"Note");var note=new PartyNote{PartyId=partyId,BranchId=request.BranchId,Text=request.Text,ActorId=r.Actor};r.Db.Add(note);r.Audit("PARTY_NOTE_ADDED",partyId);return note.Id;
     },ct);
-    public async Task<object> LedgerAsync(Guid party,PartyKind kind,Guid branch,int page,int size,CancellationToken ct,string? scope=null)
+    public async Task<object> LedgerAsync(Guid party,PartyKind kind,Guid branch,int page,int size,CancellationToken ct,string? scope=null,bool recent=false)
     {
         await r.BranchAsync(branch,kind==PartyKind.Customer?"customers.credit.view":"supplier.view",ct);await r.PartyAsync(party,kind,ct);RetailOperations.Page(page,size);
         await using var snapshot=await r.Db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead,ct);
         var q=r.Db.Set<LedgerEntry>().AsNoTracking().Where(x=>x.BranchId==branch && x.PartyId==party);RetailOperations.Check(scope is null or "" or "all" or "trade" or "independent","Choose a valid statement account.");if(scope=="trade")q=q.Where(x=>!x.Kind.StartsWith("LenDen"));if(scope=="independent")q=q.Where(x=>x.Kind.StartsWith("LenDen"));var total=await q.LongCountAsync(ct);
-        var entries=await q.OrderBy(x=>x.BusinessDate).ThenBy(x=>x.CreatedAtUtc).ThenBy(x=>x.Id).Skip((page-1)*size).Take(size).ToArrayAsync(ct);
-        var opening=await q.OrderBy(x=>x.BusinessDate).ThenBy(x=>x.CreatedAtUtc).ThenBy(x=>x.Id).Take((page-1)*size).SumAsync(x=>x.Debit-x.Credit,ct);
+        var entries=recent?await q.OrderByDescending(x=>x.CreatedAtUtc).ThenByDescending(x=>x.Id).Skip((page-1)*size).Take(size).ToArrayAsync(ct):await q.OrderBy(x=>x.BusinessDate).ThenBy(x=>x.CreatedAtUtc).ThenBy(x=>x.Id).Skip((page-1)*size).Take(size).ToArrayAsync(ct);
+        var opening=recent?0:await q.OrderBy(x=>x.BusinessDate).ThenBy(x=>x.CreatedAtUtc).ThenBy(x=>x.Id).Take((page-1)*size).SumAsync(x=>x.Debit-x.Credit,ct);
         return new{items=entries,page,pageSize=size,totalItems=total,totalPages=(total+size-1)/size,openingBalance=opening,balance=await q.SumAsync(x=>x.Debit-x.Credit,ct)};
     }
 }

@@ -6,7 +6,7 @@ A retail workspace for mobile/electronics stores: **one business per PostgreSQL 
 
 The combined Phase 1/2 application includes catalog and taxes, serialized/quantity stock, purchasing, scanner billing, customer/supplier accounts, payments and advances, returns/cancellations/refunds, LenDen, transfers, used devices/exchanges, expenses, reports, reviewed CSV imports/exports, private documents, staff access, and audit history. Posted corrections append linked records; financial and inventory posting is transactional and idempotent.
 
-For old unpaid phone down payments and paper/Excel registers, use **LenDen → Collections & promises**. See [existing dues, CSV import, payments and reviewed reminders](docs/lenden-collections.md).
+For old unpaid phone down payments and paper/Excel registers, use **LenDen → Invoices, old dues & promises**. See [existing dues, CSV import, payments and reviewed reminders](docs/lenden-collections.md).
 
 Start with [product rules and correction specification](spec.md). See [implementation status](docs/implementation-status.md), [architecture](docs/design-review.md), [authentication](docs/authentication.md), and [deployment/recovery](docs/deployment.md).
 

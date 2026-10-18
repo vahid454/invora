@@ -1314,6 +1314,11 @@ namespace Invora.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Group")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(2000)

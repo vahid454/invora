@@ -12,6 +12,24 @@ async function fixture(request:APIRequestContext){
 }
 async function login(page:Page,branch:string){await page.goto('/login');await page.getByLabel('Login',{exact:true}).fill('browser-owner');await page.getByLabel('Password',{exact:true}).fill('Browser-test-password-2026');await page.getByRole('button',{name:'Sign in →'}).click();await expect(page).toHaveURL(/\/$/);await page.getByLabel('Active branch',{exact:true}).selectOption(branch);}
 
+test('customer address needs no extra click and custom categories retain their stock group',async({page,request})=>{
+ const {branch,get,stamp}=await fixture(request);await login(page,branch);await page.goto('/sales/new');
+ await page.getByRole('button',{name:'+ New customer',exact:true}).click();let dialog=page.getByRole('dialog');
+ await expect(dialog.getByLabel('Address (optional)',{exact:true})).toBeVisible();
+ await dialog.getByLabel('Name',{exact:true}).fill('Address customer '+stamp);
+ await dialog.getByLabel('Mobile number',{exact:true}).fill('9000000224');
+ await dialog.getByLabel('Address (optional)',{exact:true}).fill('Main Road, Test City');
+ await dialog.getByRole('button',{name:'Save & select customer'}).click();await expect(dialog).toHaveCount(0);
+ const customers=await get('/customers?search=9000000224');expect(customers.items[0].address).toBe('Main Road, Test City');
+ await page.goto('/inventory');await page.getByRole('button',{name:'+ Add product',exact:true}).click();dialog=page.getByRole('dialog');
+ await dialog.getByRole('button',{name:'+ Add new category'}).click();await dialog.getByLabel('New category name').fill('Cases '+stamp);
+ await dialog.getByLabel('Category stock type').selectOption('Accessories');await dialog.getByRole('button',{name:'Save category'}).click();
+ await expect(dialog.getByLabel('New category name')).toHaveCount(0);
+ const category=(await get('/categories')).find((c:{name:string})=>c.name==='Cases '+stamp);
+ expect(category).toMatchObject({group:'Accessories',requiresImei:false});
+ await expect(dialog.getByLabel('Category',{exact:true})).toHaveValue('Cases '+stamp);
+});
+
 test('owner configures a category, records an unlisted accessory from sale and bills exact stock and payments',async({page,request})=>{
  test.setTimeout(90000);const {branch,post,get,stamp,tax}=await fixture(request),name='Clear counter case '+stamp,category='Counter cases '+stamp,barcode='CASE-'+stamp;
  const customer=await post('/customers',{name:'Accessory customer '+stamp,phone:'9000000092'});const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await login(page,branch);

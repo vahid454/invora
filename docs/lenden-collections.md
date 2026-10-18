@@ -1,6 +1,6 @@
 # LenDen: old register dues, promises and collections
 
-Open **LenDen → Collections & promises**. This screen combines unpaid Invora invoices with amounts brought forward from your old register. Customer balances and independent Give / receive money remain available in their existing tabs.
+Open **LenDen**. The single customer register shows “Lena hai” and “Dena hai” in separate columns, including sales/old dues, advances and independent Give / receive entries. Use **Recent entries** on a customer row to inspect the latest ten posted money movements and their source without leaving LenDen; **Full statement** shows older movements and corrections. Its **Invoices, old dues & promises** area lists the documents behind collections and keeps import, promise, reminder and export tools on the same page. These two accounting scopes remain traceable; the screen never silently offsets one against the other.
 
 ## Bring your register into Invora
 
@@ -52,7 +52,7 @@ Use **Receive** beside the entry. It opens the usual payment form with that due 
 - Advance / money on account deliberately leaves the receipt unallocated. **Apply existing receipts** in Collections applies eligible existing receipts to oldest dues without creating another payment. Up to 200 allocations are made per action; repeat if necessary.
 - Reversing a receipt restores the amount owed. Refunds continue to use available account credit and the existing payment controls.
 
-**Promise / notes** records a date for this entry, with shortcuts for 10, 20 or 30 days from today. Add a call/reminder note or next contact date. Earlier promises remain in history; clearing a promise restores the original due date for collection filtering. Account-level promises in Customer balances remain separate. A promise never records money received.
+**Promise / notes** records a date for this entry, with shortcuts for 10, 20 or 30 days from today. Add a call/reminder note or next contact date. Earlier promises remain in history; clearing a promise restores the original due date for collection filtering. Account-level promises are available from **Promise / remind** on the customer row; per-entry promises remain attached to the specific invoice or old due. A promise never records money received.
 
 Use **Correct entry** to cancel a mistaken opening due with a reasoned ledger reversal, then create the corrected entry with a new reference. Entries with allocated receipts must have those receipts reversed first. This is a correction workflow, not a debt write-off or a refund. Original entries are retained.
 
@@ -69,9 +69,17 @@ For reminders:
 3. Invora refreshes the account and prepares one message covering **all current unpaid invoice/register dues in that branch**, including dues outside the visible filter. Review the contact, amount and text.
 4. Open the WhatsApp draft and send it yourself, then continue to the next customer. SMS and call links are also available. Use Refresh balance if the queue has been open while payments were received.
 
-Settled accounts cannot get a collection draft. Accounts with unallocated credit are blocked until reconciled, so the draft cannot ask for money already received. Independent LenDen is excluded from this collection message and remains available through Customer balances. Opening a draft is **not** logged as sent/delivered. Record the actual conversation or reminder outcome in Promise / notes if needed.
+Settled accounts cannot get a collection draft. Accounts with unallocated credit are blocked until reconciled, so the draft cannot ask for money already received. Independent LenDen is excluded from this document collection message; use **Promise / remind** on the customer row to review both account scopes before contacting them. Opening a draft is **not** logged as sent/delivered. Record the actual conversation or reminder outcome in Promise / notes if needed.
 
-This is a guided batch of reviewed drafts, not unattended WhatsApp broadcasting. No customer messages are automatically sent. Automated delivery would require a separately configured business messaging integration and appropriate consent/templates. Existing customer-statement PDFs remain available from Customer balances / the customer page for sharing individually.
+## Internal do-not-contact / do-not-deal flag
+
+Open the customer account to mark **Blacklist** or **Fraud concern** with a reason. This is an internal caution, not a finding printed on an invoice or sent to the customer. An owner or co-owner with both `business.settings` and `customers.manage` can set or clear it. Each change is preserved as an immutable audit event, including the earlier status, actor and reason; clearing adds a new event. Review facts carefully and avoid unnecessary personal details in the reason.
+
+Flagged customers stay in customer search, statements, dues and payment history so staff can identify them and collect a payment they voluntarily bring to the shop. The warning appears on their account, in customer lookup and collection rows. They are excluded from the reminder queue. The server refuses reminder drafts, calls/reminder follow-up entries, scheduled contact dates, new sales, new LenDen money given and used-device acquisitions. Internal notes and correcting an old promise remain available. Receipts and returns remain available so the ledger can be settled accurately. Exported collection CSVs carry a **DO NOT CONTACT** column and blank the flagged customer's phone numbers; treat the file as internal and do not upload it to a messaging tool.
+
+The server checks the current flag at sale completion and when preparing a reminder, including when the screen was opened before the flag changed. Staff should refresh an already open draft before any manual contact. No messages or calls are sent automatically.
+
+This is a guided batch of reviewed drafts, not unattended WhatsApp broadcasting. No customer messages are automatically sent. Automated delivery would require a separately configured business messaging integration and appropriate consent/templates. Existing customer-statement PDFs remain available from the customer page for sharing individually.
 
 ## Storage and access
 

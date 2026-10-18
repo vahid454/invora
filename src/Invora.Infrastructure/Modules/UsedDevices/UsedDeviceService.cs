@@ -2,6 +2,7 @@ using Invora.Contracts.Retail;
 using Invora.Domain.Common;
 using Invora.Domain.Modules.Retail;
 using Invora.Infrastructure.Modules.Catalog;
+using Invora.Infrastructure.Modules.Customers;
 using Invora.Infrastructure.Modules.Inventory;
 using Invora.Infrastructure.Modules.Retail;
 using Microsoft.EntityFrameworkCore;
@@ -30,7 +31,7 @@ public sealed class UsedDeviceService(RetailOperations r,CatalogService catalog,
     private static bool HasIdentity(DeviceCapture d)=>!string.IsNullOrWhiteSpace(d.Imei1)||!string.IsNullOrWhiteSpace(d.Imei2)||!string.IsNullOrWhiteSpace(d.Serial);
     public async Task ValidateAsync(AcquisitionRequest request,CancellationToken ct)
     {
-        await r.BranchAsync(request.BranchId,"inventory.create",ct);await r.PermissionAsync("payments.create",ct);await r.PartyAsync(request.CustomerId,PartyKind.Customer,ct);
+        await r.BranchAsync(request.BranchId,"inventory.create",ct);await r.PermissionAsync("payments.create",ct);await r.PartyAsync(request.CustomerId,PartyKind.Customer,ct);await CustomerSafetyService.EnsureCanDealAsync(r,request.CustomerId,ct);
         RetailOperations.Money(request.Amount,true);RetailOperations.Check(request.Condition is "Used" or "Refurbished" or "OpenBox","Choose the old device condition.");RetailOperations.Check(request.BatteryHealth is null or >=0 and <=100 && request.WarrantyDays is >=0 and <=3650,"Check the battery health and warranty days.");
         RetailOperations.Check(string.IsNullOrEmpty(request.AadhaarLastFour)||System.Text.RegularExpressions.Regex.IsMatch(request.AadhaarLastFour,@"^\d{4}$"),"Enter only the last four Aadhaar digits, or leave this optional field blank.");RetailOperations.Check((request.SellerName?.Length??0)<=200,"Seller name is too long.");
         if(request.ProductVariantId is Guid id){var p=await catalog.ProductAsync(id,ct);RetailOperations.Check(p.Variant.Serialized,"Old phones need individual stock tracking.");}

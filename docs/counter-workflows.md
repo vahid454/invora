@@ -30,11 +30,11 @@ The top search responds while typing. On smaller screens, use the search button 
 
 ## Independent LenDen
 
-**LenDen → Customer balances** shows sales/advance balance and independent LenDen separately, plus their combined balance. Search by name/mobile, open a statement, or select **Give / receive money**. You can add a new contact in this flow without a sale.
+**LenDen → Customer register** shows “Lena hai” and “Dena hai” separately, with sales/old-dues and independent LenDen source amounts on each row. Search by name/mobile, open a statement, or select **Give / receive money**. You can add a new contact in this flow without a sale.
 
 **Money given** increases what the person owes the shop. **Money received** reduces that balance; a negative balance means the shop holds money owed to the person. Record the actual method/date/reference and a required reason. These entries create real payment receipts, cash/bank flow and immutable ledger entries, without creating sales revenue or GST.
 
-Independent entries cannot be allocated to invoices or used as invoice advances/refunds. Invoice payments use **Receive invoice payment** or the **Invoice dues** tab. Corrections use a reasoned reversal in **Payment history**, preserving the original. Statements and receipts show both movements and their reversals.
+Independent entries cannot be allocated to invoices or used as invoice advances/refunds. Invoice payments use **Receive payment** or **Receive** beside an open invoice in the same LenDen register. Corrections use a reasoned reversal in **Payment history**, preserving the original. Statements and receipts show both movements and their reversals.
 
 ## Co-owner and trusted employees
 

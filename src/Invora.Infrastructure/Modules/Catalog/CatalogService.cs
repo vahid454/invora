@@ -9,8 +9,28 @@ public sealed class CatalogService(RetailOperations r)
 {
     public static bool IsMobile(string category)=>new[]{"Mobile","Smartphone","Mobile phone","Phone"}.Contains(category.Trim(),StringComparer.OrdinalIgnoreCase);
     public async Task<bool> RequiresImeiAsync(string category,CancellationToken ct)=>IsMobile(category)||await r.Db.Set<ProductCategory>().AnyAsync(x=>x.NormalizedName==category.Trim().ToUpperInvariant()&&x.RequiresImei,ct);
-    public async Task<CategoryView[]> CategoriesAsync(CancellationToken ct){await r.PermissionAsync("inventory.view",ct);var rows=await r.Db.Set<ProductCategory>().OrderBy(x=>x.Name).Select(x=>new CategoryView(x.Name,x.RequiresImei)).ToArrayAsync(ct);var existing=await r.Db.Set<ProductModel>().Select(x=>x.Category).Distinct().ToArrayAsync(ct);return rows.Concat(existing.Where(name=>!rows.Any(x=>x.Name.Equals(name,StringComparison.OrdinalIgnoreCase))).Select(name=>new CategoryView(name,IsMobile(name)))).OrderBy(x=>x.Name,StringComparer.OrdinalIgnoreCase).ToArray();}
-    public Task<CategoryView> CreateCategoryAsync(CategoryRequest request,string key,CancellationToken ct)=>r.ExecuteAsync("category-create",key,request,async()=>{await r.PermissionAsync("inventory.create",ct);RetailOperations.Text(request.Name,"Category",100);var name=request.Name.Trim();var normalized=name.ToUpperInvariant();var existing=await r.Db.Set<ProductCategory>().SingleOrDefaultAsync(x=>x.NormalizedName==normalized,ct);if(existing is not null){RetailOperations.Check(existing.RequiresImei==(request.RequiresImei||IsMobile(name)),"Category already exists with a different stock type. Use that category or choose another name.","CATEGORY_EXISTS");return new CategoryView(existing.Name,existing.RequiresImei);}var category=new ProductCategory{Name=name,NormalizedName=normalized,RequiresImei=request.RequiresImei||IsMobile(name)};r.Db.Add(category);r.Audit("CATEGORY_CREATED",category.Id,request);return new CategoryView(name,category.RequiresImei);},ct);
+    public async Task<CategoryView[]> CategoriesAsync(CancellationToken ct)
+    {
+        await r.PermissionAsync("inventory.view",ct);
+        var rows=await r.Db.Set<ProductCategory>().OrderBy(x=>x.Name).Select(x=>new CategoryView(x.Name,x.RequiresImei,x.Group)).ToArrayAsync(ct);
+        var existing=await r.Db.Set<ProductModel>().Select(x=>x.Category).Distinct().ToArrayAsync(ct);
+        return rows.Concat(existing.Where(name=>!rows.Any(x=>x.Name.Equals(name,StringComparison.OrdinalIgnoreCase)))
+            .Select(name=>new CategoryView(name,IsMobile(name),IsMobile(name)?"Mobile":name.Equals("Accessory",StringComparison.OrdinalIgnoreCase)?"Accessories":"Electronics")))
+            .OrderBy(x=>x.Group).ThenBy(x=>x.Name,StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+    public Task<CategoryView> CreateCategoryAsync(CategoryRequest request,string key,CancellationToken ct)=>r.ExecuteAsync("category-create",key,request,async()=>
+    {
+        await r.PermissionAsync("inventory.create",ct);RetailOperations.Text(request.Name,"Category",100);
+        var name=request.Name.Trim();var normalized=name.ToUpperInvariant();
+        var group=request.Group?.Trim()??(request.RequiresImei||IsMobile(name)?"Mobile":name.Equals("Accessory",StringComparison.OrdinalIgnoreCase)?"Accessories":"Electronics");
+        RetailOperations.Check(group is "Mobile" or "Electronics" or "Accessories","Choose Mobile, Electronics or Accessories for category stock type.");
+        RetailOperations.Check(!IsMobile(name)||group=="Mobile","Mobile categories must use mobile tracking.");
+        RetailOperations.Check(!request.RequiresImei||group=="Mobile","IMEI tracking belongs to the Mobile group.");
+        var requiresImei=group=="Mobile";
+        var existing=await r.Db.Set<ProductCategory>().SingleOrDefaultAsync(x=>x.NormalizedName==normalized,ct);
+        if(existing is not null){RetailOperations.Check(existing.RequiresImei==requiresImei&&existing.Group==group,"Category already exists with a different stock type. Use that category or choose another name.","CATEGORY_EXISTS");return new CategoryView(existing.Name,existing.RequiresImei,existing.Group);}
+        var category=new ProductCategory{Name=name,NormalizedName=normalized,RequiresImei=requiresImei,Group=group};r.Db.Add(category);r.Audit("CATEGORY_CREATED",category.Id,request);return new CategoryView(name,requiresImei,group);
+    },ct);
     public async Task<string[]> BrandsAsync(CancellationToken ct){await r.PermissionAsync("inventory.view",ct);var names=await r.Db.Set<Brand>().Select(x=>x.Name).ToArrayAsync(ct);var existing=await r.Db.Set<ProductModel>().Select(x=>x.Brand).Distinct().ToArrayAsync(ct);return names.Concat(existing).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x=>x,StringComparer.OrdinalIgnoreCase).ToArray();}
     public Task<string> CreateBrandAsync(BrandRequest request,string key,CancellationToken ct)=>r.ExecuteAsync("brand-create",key,request,async()=>{await r.PermissionAsync("inventory.create",ct);RetailOperations.Text(request.Name,"Brand",100);var name=request.Name.Trim();var normalized=name.ToUpperInvariant();var existing=await r.Db.Set<Brand>().SingleOrDefaultAsync(x=>x.NormalizedName==normalized,ct);if(existing is not null)return existing.Name;var brand=new Brand{Name=name,NormalizedName=normalized};r.Db.Add(brand);r.Audit("BRAND_CREATED",brand.Id,request);return name;},ct);
     public async Task<object> TaxRatesAsync(CancellationToken ct){await r.PermissionAsync("inventory.view",ct);return await r.Db.Set<TaxRate>().AsNoTracking().OrderBy(x=>x.Rate).Select(x=>new{x.Id,x.Name,x.Rate,x.CessRate,x.IsActive}).ToArrayAsync(ct);}

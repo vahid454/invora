@@ -3,13 +3,14 @@ using Invora.Contracts.Retail;
 using Invora.Domain.Common;
 using Invora.Domain.Modules.Retail;
 using Invora.Infrastructure.Modules.Retail;
+using Invora.Infrastructure.Modules.Customers;
 using Microsoft.EntityFrameworkCore;
 namespace Invora.Infrastructure.Modules.Payments;
 public sealed class PaymentService(RetailOperations r)
 {
     public Task<Guid> RecordLenDenAsync(LenDenRequest request,string key,CancellationToken ct)=>r.ExecuteAsync("lenden-record",key,request,async()=>{
         await r.BranchAsync(request.BranchId,"ledger.adjust",ct);await r.PermissionAsync("payments.create",ct);await r.PermissionAsync("customers.credit.view",ct);
-        await r.PartyAsync(request.CustomerId,PartyKind.Customer,ct);RetailOperations.Money(request.Amount,true);RetailOperations.Check(request.Direction is "In" or "Out","Choose money received or money given.");RetailOperations.Check(Enum.IsDefined(typeof(PaymentMethod),request.Method),"Unknown payment method.");RetailOperations.Text(request.Note,"Reason for LenDen");
+        await r.PartyAsync(request.CustomerId,PartyKind.Customer,ct);RetailOperations.Money(request.Amount,true);RetailOperations.Check(request.Direction is "In" or "Out","Choose money received or money given.");if(request.Direction=="Out")await CustomerSafetyService.EnsureCanDealAsync(r,request.CustomerId,ct);RetailOperations.Check(Enum.IsDefined(typeof(PaymentMethod),request.Method),"Unknown payment method.");RetailOperations.Text(request.Note,"Reason for LenDen");
         var payment=new Payment{BranchId=request.BranchId,PartyId=request.CustomerId,Amount=request.Amount,Direction=request.Direction,Method=(PaymentMethod)request.Method,BusinessDate=request.BusinessDate,Reference=request.Reference??"",Note=request.Note.Trim(),ActorId=r.Actor};await r.CaptureReceiptAsync(payment,ct);r.Db.Add(payment);
         var incoming=request.Direction=="In";r.Ledger(request.BranchId,request.CustomerId,request.BusinessDate,incoming?"LenDenReceived":"LenDenGiven",incoming?0:request.Amount,incoming?request.Amount:0,payment:payment.Id,note:payment.Note);r.Audit("LENDEN_RECORDED",payment.Id,new{request.CustomerId,request.Direction,request.Amount,request.Note});return payment.Id;
     },ct);
