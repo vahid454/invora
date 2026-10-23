@@ -31,7 +31,7 @@ final class ShopSurface: NSView {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var window: NSWindow!
     var shop: ShopWindow?
-    let status = NSTextField(wrappingLabelWithString: "Start Docker Desktop, then choose Start shop. Your shop opens in its own Invora window.")
+    let status = NSTextField(wrappingLabelWithString: "Connect to a hosted shop without Docker, or start a local shop on this Mac.")
     let output = NSTextView()
     var actions: [NSButton] = []
     var busy = false
@@ -48,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.mainMenu = mainMenu
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 660, height: 540),
                           styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-        window.title = "Invora · Your shop on this Mac"
+        window.title = "Invora · Your shop"
         window.appearance = NSAppearance(named: .aqua)
         window.delegate = self
         window.isReleasedWhenClosed = false
@@ -58,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 28), stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -28), stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 24), stack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -24)])
         let title = NSTextField(labelWithString: "invora."); title.font = .systemFont(ofSize: 38, weight: .bold); title.textColor = green
         stack.addArrangedSubview(title)
-        let subtitle = NSTextField(wrappingLabelWithString: "Inventory, billing and LenDen. Stored on your Mac.")
+        let subtitle = NSTextField(wrappingLabelWithString: "Inventory, billing and LenDen. Choose where your shop runs.")
         subtitle.font = .systemFont(ofSize: 15); stack.addArrangedSubview(subtitle)
         status.font = .systemFont(ofSize: 13); status.textColor = .secondaryLabelColor
         status.heightAnchor.constraint(greaterThanOrEqualToConstant: 38).isActive = true
@@ -69,10 +69,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         primary.addArrangedSubview(button("Check status", #selector(checkStatus)))
         primary.addArrangedSubview(button("Stop shop", #selector(stopShop)))
         stack.addArrangedSubview(primary)
+        let hosted = button("Connect to hosted shop…", #selector(connectHosted))
+        stack.addArrangedSubview(hosted)
         let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.borderType = .bezelBorder
         output.isEditable = false; output.isSelectable = true; output.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         output.textContainerInset = NSSize(width: 10, height: 10)
-        output.string = "Welcome to Invora.\n\nStart shop opens your billing workspace.\nCheck status helps diagnose startup problems.\nStop shop keeps your database and uploaded files.\n\nFirst installation may take several minutes.\nProgress and any next steps appear here."
+        output.string = "Hosted shop: enter the HTTPS address supplied for your shop. No Docker is needed on this Mac; billing requires internet.\n\nLocal shop: start Docker Desktop, then choose Start shop. The database and uploads stay on this Mac. Check status helps diagnose startup problems. Stop shop keeps your records."
         output.autoresizingMask = [.width]; output.isVerticallyResizable = true
         output.textContainer?.widthTracksTextView = true
         scroll.documentView = output; stack.addArrangedSubview(scroll)
@@ -83,7 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         secondary.addArrangedSubview(button("Application folder", #selector(openFolder)))
         secondary.addArrangedSubview(button("Installation guide", #selector(openGuide)))
         stack.addArrangedSubview(secondary)
-        let note = NSTextField(wrappingLabelWithString: "Stopping or closing this launcher keeps your records. Keep Docker running while using the shop.")
+        let note = NSTextField(wrappingLabelWithString: "A local shop needs Docker running. A hosted shop needs internet; its records and backups are managed on the shop server.")
         note.font = .systemFont(ofSize: 11); note.textColor = .secondaryLabelColor; stack.addArrangedSubview(note)
         for label in [subtitle, status, note] { label.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
         engine.report = { [weak self] line in DispatchQueue.main.async { self?.append(line) } }
@@ -140,6 +142,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         shop?.show(); window.orderOut(nil)
     }
     @objc func startShop() { perform { try engine.start() } }
+    @objc func connectHosted() {
+        let alert = NSAlert()
+        alert.messageText = "Connect to your hosted Invora shop"
+        alert.informativeText = "Enter the HTTPS address supplied for your shop. Your records remain on that shop server."
+        alert.addButton(withTitle: "Connect"); alert.addButton(withTitle: "Cancel")
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 390, height: 24))
+        input.placeholderString = "https://your-shop.example.com/"
+        input.stringValue = UserDefaults.standard.string(forKey: "hostedShopURL") ?? ""
+        alert.accessoryView = input
+        alert.beginSheetModal(for: window) { result in
+            guard result == .alertFirstButtonReturn else { return }
+            guard let address = ShopNavigation.hostedOrigin(input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                let invalid = NSAlert(); invalid.messageText = "Enter a valid HTTPS shop address"; invalid.informativeText = "Use the root address only, without a username, path or query."
+                invalid.beginSheetModal(for: self.window); return
+            }
+            UserDefaults.standard.set(address.absoluteString, forKey: "hostedShopURL")
+            self.openShop(address)
+        }
+    }
     @objc func checkStatus() { perform { _ = try engine.check(); return nil } }
     @objc func stopShop() { shop?.window.close(); shop = nil; perform { try engine.stop(); return nil } }
     @objc func updateRelease() {

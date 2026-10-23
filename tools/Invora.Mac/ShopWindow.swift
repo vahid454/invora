@@ -2,10 +2,20 @@ import AppKit
 import WebKit
 
 struct ShopNavigation {
+    static func hostedOrigin(_ text: String) -> URL? {
+        guard let url = URL(string: text), let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              parts.scheme == "https", let host = parts.host, !host.isEmpty,
+              parts.user == nil, parts.password == nil, parts.path.isEmpty || parts.path == "/",
+              parts.query == nil, parts.fragment == nil else { return nil }
+        return url
+    }
+    private static func effectivePort(_ url: URL) -> Int {
+        url.port ?? (url.scheme == "https" ? 443 : 80)
+    }
     static func isInternal(_ url: URL, origin: URL) -> Bool {
         let candidate = url.scheme == "blob" ? URL(string: String(url.absoluteString.dropFirst(5))) : url
         guard let candidate else { return false }
-        return candidate.scheme == origin.scheme && candidate.host == origin.host && (candidate.port ?? 80) == (origin.port ?? 80) && candidate.user == nil && candidate.password == nil
+        return candidate.scheme == origin.scheme && candidate.host == origin.host && effectivePort(candidate) == effectivePort(origin) && candidate.user == nil && candidate.password == nil
     }
     static func isExternal(_ url: URL) -> Bool {
         ["http", "https", "mailto", "tel", "sms"].contains(url.scheme ?? "") && url.user == nil && url.password == nil
@@ -89,13 +99,13 @@ final class ShopWindow: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDe
         return nil
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        status.stringValue = "Your shop · Stored on this Mac"; onReady?()
+        status.stringValue = origin.scheme == "https" ? "Your shop · Records stored on your shop server" : "Your shop · Records stored on this Mac"; onReady?()
     }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { failed(error) }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failed(error) }
     private func failed(_ error: Error) {
         if (error as NSError).code == NSURLErrorCancelled { return }
-        status.stringValue = "Shop unavailable. Use Launcher → Start shop, then Reload. Saved records are retained."
+        status.stringValue = origin.scheme == "https" ? "Shop unavailable. Check internet and shop address, then Reload." : "Shop unavailable. Use Launcher → Start shop, then Reload."
     }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { status.stringValue = "The app window needs to reload. Choose Reload; saved records are retained." }
 

@@ -1,6 +1,10 @@
 # Install and run Invora on Windows
 
-The Windows release includes **`InvoraSetup.exe`**, a self-contained Windows x64 installer for the local .NET 10, Angular and PostgreSQL application. It installs the release and desktop shortcuts, then opens a dedicated Invora window using Microsoft Edge WebView2 and the same Docker-based shop system. Docker Desktop remains required; the executable is not a standalone replacement for PostgreSQL. A source ZIP and CMD launchers are also provided as an alternative.
+The Windows release includes **`InvoraSetup.exe`** for a local shop and **`Invora.Desktop.exe`** as the desktop window. The local installer runs .NET 10, Angular and PostgreSQL through Docker Desktop. For a separately provisioned hosted HTTPS shop, distribute only the desktop executable: the customer enters the shop address and does not install Docker. The hosted server and backup policy must exist first. See [deployment modes](deployment-modes.md). A source ZIP and CMD launchers are also provided for local installations.
+
+## Hosted shop (no Docker on the PC)
+
+First rebuild `tools/Invora.Desktop` from the current source with .NET 10; the older executable already in `artifacts/windows-desktop` predates hosted connection support. After vendor code signing and Windows acceptance, give the customer that rebuilt `Invora.Desktop.exe`. The customer opens it directly, enters the shop's root HTTPS address on first launch, and signs in. The app remembers the address; `Invora.Desktop.exe --configure-hosted` changes it. It can also be launched with `--hosted-url https://shop.example.com/`. Microsoft WebView2 Runtime is required. The production server owns the PostgreSQL database and uploaded documents, so internet is required for billing. Do not distribute or run `InvoraSetup.exe` for this hosted-only path.
 
 ## First installation
 

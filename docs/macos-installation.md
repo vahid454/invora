@@ -1,10 +1,14 @@
 # Install and run Invora on a Mac
 
-The Mac release is **`Invora-Mac.dmg`**, containing a native universal **Invora.app** launcher for Apple silicon and Intel Macs. A ZIP of the same app is available as `Invora-Mac.zip`. Billing opens in a dedicated Invora window using macOS WebKit; the native launcher installs, starts, checks, updates and stops the local .NET 10, Angular and PostgreSQL system. Docker Desktop remains required. No Python, Node or .NET installation is needed on the owner's Mac.
+The Mac release is **`Invora-Mac.dmg`**, containing a native universal **Invora.app** launcher for Apple silicon and Intel Macs. A ZIP of the same app is available as `Invora-Mac.zip`. Billing opens in a dedicated Invora window using macOS WebKit. For a separately provisioned hosted HTTPS shop, choose **Connect to hosted shop…** and enter the shop address; Docker is not needed on this Mac. For local offline billing, the launcher starts .NET 10, Angular and PostgreSQL through Docker Desktop. See [deployment modes](deployment-modes.md). No Python, Node or .NET installation is needed on the owner's Mac.
+
+## Hosted shop (no Docker on the Mac)
+
+Install Invora.app from the DMG, open it, choose **Connect to hosted shop…**, enter the shop's root HTTPS address and sign in. This path does not start Docker or install a local database. The Mac remembers the address for the next connection. The production server holds business records and uploads and must have its own tested backups; internet is required for billing. The app can also open a local shop later, but the two databases do not synchronize.
 
 ## First installation
 
-1. Install and start [Docker Desktop for Mac](https://docs.docker.com/desktop/setup/install/mac-install/), choosing Apple silicon or Intel for that Mac. The launcher targets macOS 14 or newer; Docker's current supported macOS versions also apply. Review Docker Desktop's licence terms for your organization.
+1. For a **local** shop, install and start [Docker Desktop for Mac](https://docs.docker.com/desktop/setup/install/mac-install/), choosing Apple silicon or Intel for that Mac. The launcher targets macOS 14 or newer; Docker's current supported macOS versions also apply. Review Docker Desktop's licence terms for your organization.
 2. Open **Invora-Mac.dmg**, drag **Invora.app** to **Applications**, and open it from there. Eject the installer after copying. Alternatively, unzip `Invora-Mac.zip` and move its app to Applications.
 3. Choose **Start shop**. The first run verifies the bundled files, creates a private configuration, downloads/builds containers, starts the database, applies explicit migrations, and opens the Invora shop window when ready. Keep Docker running. Initial installation requires internet and can take several minutes; normal local billing uses the built images.
 4. A new installation opens the local shop in its own window, without an address bar. Use **Set up Invora** on the sign-in page (or **Open in browser** and visit `http://127.0.0.1:8080/setup`). In the launcher choose **Application folder**; press **Shift–Command–.** in Finder to show hidden files. Read `INVORA_BOOTSTRAP_KEY` from the private `.env` using a text editor and use it to create the business and owner login. There is no preset owner password. Keep the key and `.env` private. Existing shops sign in with their existing accounts.
@@ -18,6 +22,7 @@ The current app has an **ad-hoc signature**, which supports local integrity chec
 | Button | Result |
 |---|---|
 | Start shop | Opens an already healthy shop, or starts its containers and migrations |
+| Connect to hosted shop… | Opens a configured HTTPS shop; does not call Docker |
 | Check status | Checks local Docker, configuration, data-volume presence and readiness; does not alter services or records |
 | Stop shop | Stops only the Invora Compose services; retains records and uploads |
 | Update release… | Installs the bundled source release, rebuilds and applies migrations after pausing billing |

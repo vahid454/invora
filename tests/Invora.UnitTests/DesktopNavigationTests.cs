@@ -26,4 +26,16 @@ public sealed class DesktopNavigationTests
         Assert.False(NavigationPolicy.IsExternal("file:///tmp/a.exe"));
         Assert.False(NavigationPolicy.IsExternal("javascript:alert(1)"));
     }
+
+    [Fact]
+    public void HostedOriginRequiresCleanHttpsRootAndKeepsDownloadsOnThatShop()
+    {
+        Assert.True(NavigationPolicy.TryHostedOrigin("https://shop.example.com/", out var origin));
+        Assert.True(NavigationPolicy.IsInternal(origin!, "https://shop.example.com/sales"));
+        Assert.True(NavigationPolicy.IsInternal(origin!, "blob:https://shop.example.com/invoice"));
+        Assert.False(NavigationPolicy.IsInternal(origin!, "https://other.example.com/sales"));
+        Assert.False(NavigationPolicy.IsInternal(origin!, "http://shop.example.com/sales"));
+        foreach (var invalid in new[] { "http://shop.example.com/", "https://user:pass@shop.example.com/", "https://shop.example.com/setup", "https://shop.example.com/?token=x", "file:///tmp/shop" })
+            Assert.False(NavigationPolicy.TryHostedOrigin(invalid, out _));
+    }
 }

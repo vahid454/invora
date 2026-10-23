@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import os
 import plistlib
+import shlex
 import shutil
 import subprocess
 
@@ -24,6 +25,10 @@ def run(*args):
 
 def main():
     OUT.mkdir(exist_ok=True)
+    swiftc = shlex.split(os.environ.get('INVORA_SWIFTC', 'xcrun swiftc'))
+    lipo = str(Path(swiftc[0]).with_name('lipo')) if Path(swiftc[0]).is_absolute() else 'xcrun'
+    sdk = os.environ.get('INVORA_MACOS_SDK')
+    sdk_args = ['-sdk', sdk] if sdk else []
     # Remove generated staging only; never an installed app or data directory.
     if STAGE.exists():
         shutil.rmtree(STAGE)
@@ -42,15 +47,19 @@ def main():
         manifest.append(f'{hashlib.sha256(data).hexdigest()}  {name}')
     (payload / 'release-sha256.txt').write_text('\n'.join(manifest) + '\n')
     for arch in ('arm64', 'x86_64'):
-        run('xcrun', 'swiftc', '-O', '-swift-version', '5', '-target', f'{arch}-apple-macos14.0',
+        run(*swiftc, '-O', '-swift-version', '5', *sdk_args, '-target', f'{arch}-apple-macos14.0',
             '-module-cache-path', OUT / 'swift-module-cache',
             ROOT / 'tools/Invora.Mac/LauncherCore.swift', ROOT / 'tools/Invora.Mac/ShopWindow.swift', ROOT / 'tools/Invora.Mac/main.swift',
             '-o', OUT / f'Invora-{arch}')
-    run('xcrun', 'lipo', '-create', OUT / 'Invora-arm64', OUT / 'Invora-x86_64', '-output', APP / 'Contents/MacOS/Invora')
+    run(*([lipo, 'lipo'] if lipo == 'xcrun' else [lipo]), '-create', OUT / 'Invora-arm64', OUT / 'Invora-x86_64', '-output', APP / 'Contents/MacOS/Invora')
     (APP / 'Contents/MacOS/Invora').chmod(0o755)
-    run('xcrun', 'swiftc', '-module-cache-path', OUT / 'swift-module-cache', ROOT / 'tools/Invora.Mac/Icon.swift', '-o', OUT / 'invora-icon-builder')
-    run(OUT / 'invora-icon-builder', OUT / 'Invora.iconset')
-    run('/usr/bin/iconutil', '-c', 'icns', OUT / 'Invora.iconset', '-o', RESOURCES / 'Invora.icns')
+    icon_file = os.environ.get('INVORA_ICON_FILE')
+    if icon_file:
+        shutil.copyfile(icon_file, RESOURCES / 'Invora.icns')
+    else:
+        run(*swiftc, *sdk_args, '-module-cache-path', OUT / 'swift-module-cache', ROOT / 'tools/Invora.Mac/Icon.swift', '-o', OUT / 'invora-icon-builder')
+        run(OUT / 'invora-icon-builder', OUT / 'Invora.iconset')
+        run('/usr/bin/iconutil', '-c', 'icns', OUT / 'Invora.iconset', '-o', RESOURCES / 'Invora.icns')
     with (APP / 'Contents/Info.plist').open('wb') as f:
         plistlib.dump({'CFBundleExecutable': 'Invora', 'CFBundleIdentifier': 'app.invora.shop',
                       'CFBundleName': 'Invora', 'CFBundleDisplayName': 'Invora', 'CFBundlePackageType': 'APPL',

@@ -11,6 +11,16 @@ internal static class NavigationPolicy
         origin = uri; return true;
     }
 
+    internal static bool TryHostedOrigin(string text, out Uri? origin)
+    {
+        origin = null;
+        if (!Uri.TryCreate(text, UriKind.Absolute, out var uri) || uri.Scheme != "https" ||
+            uri.Host.Length == 0 || uri.HostNameType == UriHostNameType.Unknown ||
+            uri.UserInfo.Length != 0 || uri.AbsolutePath != "/" ||
+            uri.Query.Length != 0 || uri.Fragment.Length != 0) return false;
+        origin = uri; return true;
+    }
+
     internal static bool IsInternal(Uri origin, string text)
     {
         if (text.StartsWith("blob:", StringComparison.Ordinal)) text = text[5..];

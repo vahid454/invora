@@ -12,6 +12,8 @@ The installer contains the application release, dedicated Windows WebView2 host 
 
 For Mac customers, deliver **`Invora-Mac.dmg`** (or the ZIP), its SHA-256 sidecar and the [Mac installation guide](macos-installation.md). The native universal app requires Docker Desktop and uses the same signed Shop ID licence flow. Its current ad-hoc signature is for local integrity checking; obtain Developer ID signing and Apple notarization before broad public distribution. No database, backup, private `.env` or vendor signing key is included.
 
+For every **local** customer, installation is complete only after its own encrypted database-and-uploads backup destination, daily schedule, recovery-key custody and restore rehearsal are configured. This development Mac's Backblaze remote and 9 PM schedule do not transfer to another shop's computer. Use a private bucket/path and scoped credential per shop, check `python3 scripts/check-backup-health.py --destination /path/to/shop-backups` against the chosen destination, and keep the matching `.env` plus decryption key in protected off-device custody. See [offsite backups](offsite-backups.md) and [deployment modes](deployment-modes.md).
+
 ## Which key is private?
 
 | Item | Who uses it | Purpose |

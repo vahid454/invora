@@ -10,12 +10,48 @@ internal static class Program
     private static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
-        if (args.Length != 2 || args[0] != "--url" || !NavigationPolicy.TryLocalOrigin(args[1], out var origin))
+        Uri? origin;
+        if (args.Length == 2 && args[0] == "--url" && NavigationPolicy.TryLocalOrigin(args[1], out origin))
         {
-            MessageBox.Show("Open Start Invora from your desktop or application folder. The shop address must match its local configuration.", "Invora", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Application.Run(new ShopWindow(origin!));
             return;
         }
-        Application.Run(new ShopWindow(origin!));
+        if (args.Length == 2 && args[0] == "--hosted-url" && NavigationPolicy.TryHostedOrigin(args[1], out origin))
+        {
+            Application.Run(new ShopWindow(origin!));
+            return;
+        }
+        if (args.Length == 0 || (args.Length == 1 && args[0] == "--configure-hosted"))
+        {
+            var settings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Invora Desktop", "hosted-url.txt");
+            var configured = File.Exists(settings) ? File.ReadAllText(settings).Trim() : "";
+            if (args.Length == 1 || !NavigationPolicy.TryHostedOrigin(configured, out origin))
+            {
+                configured = PromptForHostedOrigin(configured);
+                if (!NavigationPolicy.TryHostedOrigin(configured, out origin)) return;
+                Directory.CreateDirectory(Path.GetDirectoryName(settings)!);
+                File.WriteAllText(settings, origin!.AbsoluteUri);
+            }
+            Application.Run(new ShopWindow(origin!));
+            return;
+        }
+        MessageBox.Show("Use the desktop app for a configured HTTPS shop, or open Start Invora for a local shop.", "Invora", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private static string PromptForHostedOrigin(string current)
+    {
+        using var dialog = new Form { Text = "Connect to your Invora shop", Width = 530, Height = 190, StartPosition = FormStartPosition.CenterScreen, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
+        var label = new Label { Left = 20, Top = 18, Width = 475, Height = 40, Text = "Enter the HTTPS address supplied for your shop. Your records remain on that shop server." };
+        var input = new TextBox { Left = 20, Top = 65, Width = 475, Text = current, PlaceholderText = "https://your-shop.example.com/" };
+        var connect = new Button { Text = "Connect", Left = 360, Top = 105, Width = 135, DialogResult = DialogResult.OK };
+        dialog.Controls.AddRange([label, input, connect]); dialog.AcceptButton = connect;
+        while (dialog.ShowDialog() == DialogResult.OK)
+        {
+            var value = input.Text.Trim();
+            if (NavigationPolicy.TryHostedOrigin(value, out _)) return value;
+            MessageBox.Show(dialog, "Enter an HTTPS shop address with no extra path, username, or query.", "Invora", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        return "";
     }
 }
 
@@ -101,7 +137,9 @@ internal sealed class ShopWindow : Form
             };
             web.CoreWebView2.NavigationCompleted += (_, e) =>
             {
-                status.Text = e.IsSuccess ? "Your shop · Stored on this computer" : "Shop unavailable. Start Docker Desktop and Start Invora, then choose Reload.";
+                status.Text = e.IsSuccess ?
+                    (origin.Scheme == "https" ? "Your shop · Records stored on your shop server" : "Your shop · Records stored on this computer") :
+                    (origin.Scheme == "https" ? "Shop unavailable. Check your internet connection and shop address, then choose Reload." : "Shop unavailable. Start Docker Desktop and Start Invora, then choose Reload.");
             };
             web.CoreWebView2.ProcessFailed += (_, _) => status.Text = "The app window needs to reload. Your saved records are retained. Choose Reload or reopen Start Invora.";
             ready = true;

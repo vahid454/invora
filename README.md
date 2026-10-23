@@ -10,9 +10,9 @@ For old unpaid phone down payments and paper/Excel registers, use **LenDen → I
 
 Start with [product rules and correction specification](spec.md). See [implementation status](docs/implementation-status.md), [architecture](docs/design-review.md), [authentication](docs/authentication.md), and [deployment/recovery](docs/deployment.md).
 
-For shop operators, read [daily flow, ledger direction, data storage and security](docs/owner-guide.md). For Windows, use `InvoraSetup.exe` and the [installation guide](docs/windows-installation.md); Docker Desktop is required. The source ZIP/CMD launchers remain available. See [commercial installation, paid licences and renewal](docs/commercial-release.md) for selling the app and keeping vendor signing keys private.
+For shop operators, read [daily flow, ledger direction, data storage and security](docs/owner-guide.md). Choose [hosted or local deployment](docs/deployment-modes.md) before onboarding. The hosted desktop connection does not require Docker on the customer's computer; the current offline local installation does. For Windows local mode, use `InvoraSetup.exe` and the [installation guide](docs/windows-installation.md). See [commercial installation, paid licences and renewal](docs/commercial-release.md) for selling the app and keeping vendor signing keys private.
 
-For Mac, use **`Invora-Mac.dmg`** with its native **Invora.app** launcher; see [Mac installation](docs/macos-installation.md). It supports Apple silicon and Intel builds and requires Docker Desktop. Read [where data is stored, security limits and backups](docs/data-storage-security.md) before installing a customer shop.
+For Mac, use **`Invora-Mac.dmg`** with its native **Invora.app** launcher; see [Mac installation](docs/macos-installation.md). It supports Apple silicon and Intel builds. Hosted connection does not use Docker; local mode still requires it. Read [where data is stored, security limits and backups](docs/data-storage-security.md) before installing a customer shop.
 
 Windows releases include **Check Invora** for read-only startup diagnostics and a report without secret values or shop records. Target-PC installation and hardware results belong in the [Windows acceptance record](docs/windows-acceptance.md).
 

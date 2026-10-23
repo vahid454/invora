@@ -66,6 +66,14 @@ for invalid in ["https://example.com", "file:///etc/passwd", "http://localhost:9
     guard !ShopNavigation.isInternal(URL(string: invalid)!, origin: origin) else { fail("Cross-origin navigation allowed") }
 }
 guard ShopNavigation.isInternal(origin.appendingPathComponent("sales"), origin: origin), !ShopNavigation.isExternal(URL(string: "file:///tmp/file")!) else { fail("Navigation policy failed") }
+guard let hosted = ShopNavigation.hostedOrigin("https://shop.example.com/"),
+      ShopNavigation.isInternal(URL(string: "https://shop.example.com/sales")!, origin: hosted),
+      ShopNavigation.isInternal(URL(string: "blob:https://shop.example.com/invoice")!, origin: hosted),
+      !ShopNavigation.isInternal(URL(string: "http://shop.example.com/sales")!, origin: hosted),
+      !ShopNavigation.isInternal(URL(string: "https://other.example.com/sales")!, origin: hosted) else { fail("Hosted navigation policy failed") }
+for invalid in ["http://shop.example.com/", "https://user:pass@shop.example.com/", "https://shop.example.com/setup", "https://shop.example.com/?token=x"] {
+    guard ShopNavigation.hostedOrigin(invalid) == nil else { fail("Invalid hosted shop URL accepted") }
+}
 shop.show()
 while !complete && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
 guard complete else { fail("Desktop acceptance timed out: " + shop.status.stringValue + "; stage=\(stage); saved=\(saved.count); url=" + (shop.web.url?.absoluteString ?? "none")) }
