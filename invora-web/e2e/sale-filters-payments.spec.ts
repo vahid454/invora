@@ -1,5 +1,5 @@
 import {test,expect,type Page,type APIRequestContext} from '@playwright/test';
-import {readFileSync} from 'node:fs';
+import {readFileSync,writeFileSync} from 'node:fs';
 import {ownerSession} from './session';
 
 test.skip(!process.env['INVORA_E2E_ENV'],'Requires an isolated database.');
@@ -66,4 +66,65 @@ test('sale counts cleared and split payments correctly through review, posting a
   const second=await get('/sales/'+secondId);expect(Number(second.paid)).toBe(30);expect(Number(second.outstanding)).toBe(170.45);expect(Number((await get('/customers/'+customer+'?branchId='+branch)).tradeBalance)).toBe(170.45);
   payments=await get('/payments?branchId='+branch+'&partyId='+customer);expect(payments.totalItems).toBe(5);
   await page.goto('/lenden');await page.getByRole('searchbox',{name:'Find LenDen customer'}).fill(name);await expect(page.locator('.lenden-register> .table-wrap tbody')).toContainText('₹170.45');await expect(page.locator('.collections tbody')).toContainText(second.number);expect(errors).toEqual([]);
+});
+
+test('finance details persist on a credit invoice without counting an expected payout as cash',async({page,request})=>{
+  test.setTimeout(90000);
+  const {post,get,branch,headers}=await context(request),stamp=Date.now();
+  const customer=await post('/customers',{name:'Finance customer '+stamp,phone:'9'+String(stamp).slice(-9)}),tax=await post('/tax-rates',{name:'Finance tax '+stamp,rate:'0'});
+  const product=await post('/products/with-stock',{branchId:branch,quantity:1,unitCost:'100',reason:'Finance checkout fixture',product:{name:'Finance phone case '+stamp,brand:'Generic',category:'Accessories',hsn:'3926',taxRateId:tax,sku:'FIN-'+stamp,ram:'',storage:'',color:'',serialized:false,sellingPrice:'200',mrp:'200'}});
+  await login(page,branch);await page.goto('/sales/new?partyId='+customer);
+  await page.getByRole('combobox',{name:'Product',exact:true}).selectOption(product);await page.getByRole('button',{name:'+ Add product',exact:true}).click();
+  await page.getByLabel('Due date for credit sale',{exact:true}).fill(offset(today(),7));await page.getByLabel('Cash received',{exact:true}).fill('20');
+  await page.getByRole('combobox',{name:'Finance company',exact:true}).selectOption({label:'BAJAJ'});await page.getByLabel('Application / agreement reference',{exact:true}).fill('BAJAJ-'+stamp);await page.getByLabel('Agreed customer down payment · before discount',{exact:true}).fill('50');
+  await page.getByRole('button',{name:'Review totals',exact:true}).click();await expect(page.getByRole('region',{name:'Payment summary'})).toContainText('₹30.00');await expect(page.locator('.sale-finance-entry')).toContainText('₹150.00');
+  await page.screenshot({path:'../artifacts/finance-sale-review.png',fullPage:true,animations:'disabled'});
+  await page.getByRole('button',{name:'Complete sale',exact:true}).click();await expect(page).toHaveURL(/\/sales\/[a-f0-9-]+$/);
+  const id=page.url().split('/').at(-1),invoice=await get('/invoices/'+id),sale=await get('/sales/'+id);
+  expect(invoice.finance.provider).toBe('BAJAJ');expect(invoice.finance.reference).toBe('BAJAJ-'+stamp);expect(Number(invoice.finance.expectedAmount)).toBe(150);expect(Number(invoice.finance.customerDownPayment)).toBe(50);expect(Number(sale.paid)).toBe(20);expect(Number(sale.financeAssigned)).toBe(150);expect(Number(sale.outstanding)).toBe(30);
+  const pdf=await request.get('/api/v1/invoices/'+id+'/pdf',{headers});expect(pdf.ok()).toBeTruthy();writeFileSync('../artifacts/finance-invoice-sample.pdf',await pdf.body());
+  const printResponse=page.waitForResponse(response=>response.url().endsWith('/api/v1/invoices/'+id+'/pdf'));
+  await page.getByRole('button',{name:'Print invoice',exact:true}).click();
+  expect((await printResponse).ok()).toBeTruthy();
+  await expect(page.locator('iframe.invoice-print-frame')).toHaveCount(1);
+  await expect(page.locator('p.error').filter({hasText:/./})).toHaveCount(0);
+  await page.goto('/sales');await page.getByRole('combobox',{name:'Finance provider filter',exact:true}).selectOption('BAJAJ');await expect(page.locator('tbody')).toContainText('BAJAJ');await expect(page.locator('tbody')).toContainText(invoice.number);
+});
+
+test('independent LenDen recording previews the full customer payable balance',async({page,request})=>{
+  const {post,get,branch}=await context(request),stamp=Date.now();const customer=await post('/customers',{name:'LenDen preview '+stamp,phone:'9'+String(stamp).slice(-9)});
+  await post('/lenden/existing-dues',{branchId:branch,customerId:customer,reference:'BOOK-'+stamp,description:'Phone down payment',financeReference:'',amount:'1000',businessDate:'2026-09-01',dueDate:offset(today(),7)});
+  await post('/lenden/entries',{branchId:branch,customerId:customer,direction:'Out',amount:'500',method:1,businessDate:today(),reference:'',note:'Money given'});
+  await login(page,branch);await page.goto('/lenden/new?partyId='+customer+'&direction=In');
+  const account=page.getByRole('region',{name:'Customer amount payable'});await expect(account).toContainText('₹1,500.00');await expect(account).toContainText('₹1,000.00');await expect(account).toContainText('₹500.00');
+  await page.getByLabel('Amount',{exact:true}).fill('300');await expect(account).toContainText('₹1,200.00');await page.getByLabel('Reason for LenDen').fill('Partial repayment');
+  await page.screenshot({path:'../artifacts/lenden-payment-preview.png',fullPage:true,animations:'disabled'});
+  await page.getByRole('button',{name:'Record LenDen',exact:true}).click();await expect(page).toHaveURL(/\/lenden$/);const updated=await get('/lenden/accounts/'+customer+'?branchId='+branch);
+  expect(Number(updated.lenaHai)).toBe(1200);expect(Number(updated.tradeBalance)).toBe(1000);expect(Number(updated.independentBalance)).toBe(200);
+});
+
+
+test('financed checkout discount clears only the unpaid customer down payment',async({page,request})=>{
+  test.setTimeout(90000);
+  const {post,get,branch,headers}=await context(request),stamp=Date.now();
+  const customer=await post('/customers',{name:'Discount customer '+stamp,phone:'9'+String(stamp).slice(-9)});
+  const tax=await post('/tax-rates',{name:'Discount GST 0 '+stamp,rate:'0'});
+  const product=await post('/products/with-stock',{branchId:branch,quantity:1,unitCost:'20000',reason:'Finance discount fixture',product:{name:'Discount phone case '+stamp,brand:'Generic',category:'Accessories',hsn:'3926',taxRateId:tax,sku:'DISC-'+stamp,ram:'',storage:'',color:'',serialized:false,sellingPrice:'24500',mrp:'24500'}});
+  await login(page,branch);await page.goto('/sales/new?partyId='+customer);
+  await page.getByRole('combobox',{name:'Product',exact:true}).selectOption(product);await page.getByRole('button',{name:'+ Add product',exact:true}).click();
+  await page.getByLabel('Cash received',{exact:true}).fill('2100');
+  await page.getByLabel('Discount given on this bill (₹)',{exact:true}).fill('300');
+  await page.getByRole('combobox',{name:'Finance company',exact:true}).selectOption('BAJAJ');
+  await page.getByLabel('Agreed customer down payment · before discount',{exact:true}).fill('2400');
+  await page.getByRole('button',{name:'Review totals',exact:true}).click();
+  await expect(page.locator('.posted-quote')).toContainText('₹24,200.00');
+  await expect(page.locator('.sale-finance-entry')).toContainText('₹22,100.00');
+  await expect(page.getByRole('region',{name:'Payment summary'})).toContainText('₹0.00');
+  await page.getByRole('button',{name:'Complete sale',exact:true}).click();await expect(page).toHaveURL(/\/sales\/[a-f0-9-]+$/);
+  const id=page.url().split('/').at(-1),sale=await get('/sales/'+id),invoice=await get('/invoices/'+id);
+  expect(Number(sale.total)).toBe(24200);expect(Number(sale.paid)).toBe(2100);expect(Number(sale.financeAssigned)).toBe(22100);expect(Number(sale.outstanding)).toBe(0);
+  expect(Number(invoice.lines[0].discount)).toBe(300);expect(Number(invoice.finance.customerDownPayment)).toBe(2100);
+  expect(Number((await get('/customers/'+customer+'?branchId='+branch)).tradeBalance)).toBe(0);
+  const pdf=await request.get('/api/v1/invoices/'+id+'/pdf',{headers});expect(pdf.ok()).toBeTruthy();writeFileSync('../artifacts/finance-discount-invoice.pdf',await pdf.body());
+  const payments=await get('/payments?branchId='+branch+'&partyId='+customer);expect(payments.items).toHaveLength(1);expect(Number(payments.items[0].amount)).toBe(2100);
 });

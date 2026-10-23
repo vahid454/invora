@@ -45,6 +45,11 @@ public sealed partial class RetailApiTests
         var csv = await client.GetStringAsync($"/api/v1/lenden/collections/export?branchId={branch}");
         Assert.Contains("DO NOT CONTACT", csv);
         Assert.DoesNotContain("9000000002", csv);
+        var registerCsv = await client.GetStringAsync($"/api/v1/lenden/accounts/export?branchId={branch}&filter=owed");
+        Assert.Contains("DO NOT CONTACT", registerCsv);
+        Assert.Contains("500.00", registerCsv);
+        Assert.DoesNotContain("9000000002", registerCsv);
+        Assert.True((await client.GetByteArrayAsync($"/api/v1/lenden/accounts/call-sheet/pdf?branchId={branch}")).AsSpan().StartsWith("%PDF-"u8));
         Assert.False((await client.GetAsync($"/api/v1/lenden/collections/{customer}/reminder?branchId={branch}")).IsSuccessStatusCode);
         Assert.False((await Post("/lenden/followups", new FollowUpRequest(branch, customer, "Reminder", "Do not contact"))).IsSuccessStatusCode);
         Assert.False((await Post("/lenden/followups", new FollowUpRequest(branch, customer, "Note", "No call", NextContactDate:date.AddDays(2)))).IsSuccessStatusCode);

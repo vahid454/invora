@@ -2,6 +2,10 @@
 
 Invora stores one business in a PostgreSQL database, with branches inside it. In the local Windows/Mac installation the records stay on that computer. Invora does not automatically upload the shop database to a vendor cloud, synchronize computers, or send customer messages. WhatsApp/SMS buttons prepare a message that an operator chooses to send.
 
+**Data-retention policy:** ordinary sale, purchase, payment, stock and ledger postings remain in PostgreSQL after app restarts, browser changes and image upgrades. Corrections use linked reversals or returns so the original posting stays reviewable. Product and device-detail edits are audited; access is limited by staff permissions. The owner controls the computer, Docker volumes, backups and retention. No vendor copy exists by default. Clearing a browser cache is safe for business records; deleting/resetting the database or Docker volumes is not. A shop administrator with host or database access can still delete records, so the application cannot promise that data will “never” be lost.
+
+**A browser is only a window into the shop server.** Opening another browser on the same Mac uses that Mac's existing PostgreSQL database after signing in; clearing browser history or changing browsers does not remove invoices. Opening a browser on a Windows PC connected to the *same* HTTPS shop server also shows the same records and uses its own login session. Installing a second local copy on Windows creates a separate empty database unless you restore the Mac's database and uploads there. The app/EXE, browser profile and licence key do not synchronize records.
+
 ## What happens when you save
 
 The browser or dedicated desktop window sends the sale or payment to the .NET API. The API checks the signed-in user's permissions and branch, recalculates amounts and tax, validates available stock, and saves the related invoice, stock, payment, ledger and audit entries together in one PostgreSQL transaction. A failed posting rolls back those entries. Request keys prevent the same successful request retry from double-posting.
@@ -45,13 +49,19 @@ Back up **the database, uploads and private configuration**, keeping matching ve
 
 Store multiple backup generations off the shop computer, protect `.env` separately, and rehearse restoration and reconciliation. A backup on the same disk cannot recover a lost or failed disk. Schedules, off-host transfer and failure alerts are not automatic in the desktop launcher; they must be configured for the shop. See [backup and restore instructions](deployment.md#backups).
 
+For the optional second-drive/cloud copy command, provider choices, and an honest account of what is not configured yet, see [offsite backups](offsite-backups.md). `scripts/backup-offsite.sh` pauses billing for a consistent snapshot and copies the encrypted archive to configured destinations; it does not by itself install a schedule or create a cloud account.
+
+**Before going live**, arrange a scheduled encrypted backup copied to a protected second device or cloud account, alert on a missed run, and do a trial restore. Keep the encryption private key and trusted signing public key separate from the shop PC. Until that is configured, the out-of-box installation protects ordinary transactions and restarts but has a single-machine failure point. The setup key and commercial licence do not change this.
+
+For an owner-operated local shop, make an encrypted backup after each business day and before every app or computer change, copy it to at least one protected off-device destination, and check that a scheduled backup actually ran. Keep several generations so an accidental edit or corruption discovered later can be recovered. Periodically restore one into an isolated database and run `scripts/reconcile.sql`; checking only that a backup file exists does not prove recovery. Never delete the old computer's Docker volumes or reset it until the new installation, invoice PDFs, stock, balances and uploads have been checked against the restored copy.
+
 ## Moving to another Mac or Windows PC
 
 1. Stop entering sales/payments on the old computer. Keep Docker's database running, stop API/web, and create a current encrypted database-and-documents backup. Copy the matching private `.env`, the required decryption/verification keys and the backup to protected **off-device** storage. Check the backup timestamp and retain older generations.
 2. Install Invora and Docker Desktop on the new computer. Do not create a new shop or issue a new owner login. Restore the archive into an **isolated** database and document folder first, run `scripts/reconcile.sql`, compare key counts/balances, and verify an invoice PDF and an uploaded bill. The restore script deliberately never overwrites the live database.
 3. Only after those checks, plan the cutover to the new Docker database/document volumes with the original `.env` and restored Shop ID. Verify login, inventory, invoices, LenDen and licence. Keep the old computer read-only until the new one is accepted; do not let two independent copies take new transactions.
 
-The desktop app has **no automatic cross-device synchronization or automatic off-site backup**. Records can be lost after disk failure, Docker volume removal, malware or an unbacked-up device move. No software can guarantee “never lost”; the practical protection is scheduled off-device backups, alerts for missed backups, and periodic tested restores. The signed shop licence is not a backup or an encryption key.
+The desktop app has **no automatic cross-device synchronization**. A fresh installation has no off-site backup until configured; this Mac now has a 9 PM local-time Backblaze push, described in [offsite backups](offsite-backups.md#this-macs-daily-backblaze-push). Records can still be lost after a disk failure between backups, a failed or missed scheduled run, or loss of the only decryption key. No software can guarantee “never lost”; check backup success, keep recovery keys away from the Mac, and periodically test restores. The signed shop licence is not a backup or an encryption key.
 
 ## Owner-requested cleanup on 8 October 2026
 
@@ -60,6 +70,12 @@ The local operational reset retained owner/staff accounts and grants, shop/branc
 A private recovery snapshot was created under `.private-backups/before-clean-<UTC timestamp>` in the original workspace. Its database dump was restored into a temporary database, checked against the original table hashes/counts and reconciled; the selective reset was rehearsed there before touching live records. Preserved tables were verified again after reset, and all 32 operational tables and the document volume were confirmed empty. A new maintenance audit entry records the reset. No other application's database or Docker volumes were changed.
 
 This one-time snapshot contains `database.dump`, `documents.tar.gz`, `configuration.env`, checksums, table hashes/counts and recovery notes. It has private local permissions but **is not itself encrypted**. Prior data also remains in retained audit history and recovery backups; this was a shop-data reset, not a secure-erasure operation. These folders are excluded from source packages and Docker builds. Do not distribute the snapshot with the software. Keep it only for the agreed recovery period and protect any off-computer copy.
+
+## Owner-requested cleanup on 23 October 2026
+
+The owner again requested clearing live shop transaction and customer data while keeping owner/staff logins, shop settings and the catalog. Before cleanup, a new signed encrypted database-and-uploads archive was uploaded to the private Backblaze bucket, downloaded, checksum-compared, restored in isolation and financially reconciled. The selective cleanup was rehearsed on a restored copy, then applied to the live database with API/web stopped. It cleared all 35 operational/session tables, including customers/suppliers, stock units, purchases, sales, payments, ledger, imports and active credentials; the document volume was empty. Protected shop/catalog tables matched their pre-clean row counts and fingerprints before the maintenance audit entry was added. Number sequences remained advanced, and the same owner login can be used again. Readiness and financial reconciliation passed after restart.
+
+A fresh post-clean encrypted backup was uploaded by the 9 PM LaunchAgent's manual acceptance run, downloaded and checksum-compared, restored in isolation, and checked for empty operational tables and retained owner/catalog data. The pre-clean archive remains in the private bucket for recovery, so this cleanup is **not secure erasure**. The bucket does not contain `.env` or the decryption private key; those still need a separately protected off-computer recovery copy.
 
 ## Dedicated window and printed QR codes
 

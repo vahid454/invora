@@ -19,3 +19,5 @@ test-results/
 .vendor-private/
 .private-backups/
 *.license
+__pycache__/
+*.pyc

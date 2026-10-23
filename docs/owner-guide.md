@@ -20,6 +20,8 @@ flowchart LR
 
 Receiving a **new supplier bill** creates stock and a supplier payable together. Opening stock is for items already in the shop; it does not invent a supplier bill. Each physical phone has its own identity and variant; quantity accessories use quantity and cost layers. A sale checks that the exact phone is available again when posting. Stock transfers reserve stock at the source; it becomes available at the destination after actual receipt.
 
+From **Inventory → Add product**, enter the model or accessory details **and the physical units you have**. Phones need one identity row per handset, including IMEI; quantity goods need a count and per-unit acquisition cost. Saving records the product and stock together. Use **Adjust existing stock** to correct a count for a product already in the catalog. If the goods came with a new supplier bill, use **Purchases → New purchase**: it captures the same product/identity details while also recording the supplier invoice and payable. Inventory marks available units green, sold units grey, and other unavailable states with distinct warning colours. Creating a catalog record alone does not claim that stock exists.
+
 The API calculates tax and money totals. A posting transaction either commits its related stock, invoice, payment and ledger records together or rolls them back. An idempotency key prevents an ordinary same-request retry from posting a second transaction. Returns, refunds and reversals retain the original history and add corrections.
 
 ## Correcting a device
@@ -30,7 +32,7 @@ IMEI, serial/shop tag, stock quantity, purchase cost and posted bills are protec
 
 ## Warranty shown on invoices
 
-New sales state that applicable warranty is covered by the manufacturer / authorized service partner and the customer must visit the authorized service centre. The shop does not provide that warranty. Used, refurbished and open-box customer devices show **No warranty**. Acquisition/exchange screens no longer offer a store-warranty period. Posted invoices retain the terms and device description captured when issued; subsequent edits do not rewrite them.
+New sales state that applicable warranty is covered by the manufacturer / authorized service partner and the customer must visit the authorized service centre. The shop does not provide that warranty. The generic invoice terms do not mention used phones. Internal acquisition/exchange records may still show **No warranty** for a used device. Posted invoice data and item descriptions remain saved as issued; the PDF renderer omits the obsolete generic used-phone sentence when reprinting an older invoice.
 
 ## Lena hai or dena hai?
 
@@ -96,6 +98,8 @@ Commercial installations use a signed shop licence at **Shop licence**. Send the
 In **Sales & invoices**, combine the customer/phone/invoice search with **Invoice period**: Today, Yesterday, Last 7 days, This month or Custom dates. From/To include both dates and use the invoice's business date. Leave an endpoint blank for an open range; All dates/Clear dates removes the date restriction. Export CSV respects the current sales search and dates.
 
 In **New sale**, enter the actual cash, UPI and card amounts received; leave unused methods blank or zero. Review shows each method, total received, exchange credit and the remaining due. If you change a payment after review, the balance preview updates and you review once more before completing. Fully paid sales need no credit due date. For part payment, enter a due date; only the unpaid invoice balance appears in LenDen. A separate advance above the new bill should be recorded through Record payment.
+
+For a financed sale, select the provider and enter the **original agreed customer down payment**. The finance company's assigned payout stays tagged to the invoice for offline follow-up; it is not recorded as cash. Actual cash/UPI/card received at checkout is recorded as a payment and reduces the customer balance. A checkout discount reduces the taxable invoice total and the customer's agreed down payment before posting; it never creates a payment or an outstanding due. For example, on a ₹24,500 bill with ₹2,400 agreed down payment, ₹2,100 cash and ₹300 checkout discount, the final invoice is ₹24,200, the customer owes ₹0, and ₹22,100 remains assigned to the provider. The invoice PDF prints the discount in the item details and the final GST total, plus the provider/reference; it does not print the internal provider-receivable or down-payment amounts. Checkout discount is available only on tax-inclusive prices; use item discount for tax-exclusive pricing. A user needs sale-discount permission to grant it.
 
 ## Old register and remaining down payments
 

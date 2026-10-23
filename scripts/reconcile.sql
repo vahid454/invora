@@ -18,6 +18,18 @@ WHERE NOT EXISTS(SELECT 1 FROM "LedgerEntry" e WHERE e."PaymentId"=p."Id" AND (C
 OR (SELECT COUNT(*) FROM "LedgerEntry" e WHERE e."PaymentId"=p."Id")<>1;
 SELECT 'sale_ledger' AS check_name,s."Id",s."Total" FROM "Sale" s WHERE s."Status" NOT IN ('Draft','Abandoned')
 AND NOT EXISTS(SELECT 1 FROM "LedgerEntry" e WHERE e."SaleId"=s."Id" AND e."Kind"='Sale' AND e."Debit"=s."Total");
+SELECT 'finance_assignment' AS check_name,s."Id",f.original_assigned,f.released,s."Total"-COALESCE((SELECT SUM(n."Credit") FROM "SaleReturn" n WHERE n."SaleId"=s."Id"),0) AS remaining_value
+FROM "Sale" s CROSS JOIN LATERAL (
+  SELECT COALESCE(SUM(e."Credit") FILTER (WHERE e."Kind"='FinanceAssigned'),0) AS original_assigned,
+         COALESCE(SUM(e."Debit") FILTER (WHERE e."Kind"='FinanceReturnReversal'),0) AS released,
+         COUNT(*) FILTER (WHERE e."Kind"='FinanceAssigned') AS assignment_count
+  FROM "LedgerEntry" e WHERE e."SaleId"=s."Id"
+) f
+WHERE f.assignment_count>1 OR f.original_assigned>s."Total" OR f.released>f.original_assigned
+   OR f.original_assigned-f.released>s."Total"-COALESCE((SELECT SUM(n."Credit") FROM "SaleReturn" n WHERE n."SaleId"=s."Id"),0);
+SELECT 'finance_assignment_scope' AS check_name,e."Id",e."SaleId" FROM "LedgerEntry" e JOIN "Sale" s ON s."Id"=e."SaleId"
+WHERE e."Kind" IN ('FinanceAssigned','FinanceReturnReversal')
+  AND (e."BranchId"<>s."BranchId" OR e."PartyId"<>s."CustomerId" OR e."PaymentId" IS NOT NULL);
 SELECT 'return_quantity' AS check_name,i."Id",i."Quantity" FROM "SaleItem" i
 WHERE COALESCE((SELECT SUM(r."Quantity") FROM "SaleReturnItem" r WHERE r."SaleItemId"=i."Id"),0)>i."Quantity";
 SELECT 'quantity_movements' AS check_name,b."BranchId",b."ProductVariantId",b."Quantity",COALESCE(SUM(m."Quantity"),0) AS expected

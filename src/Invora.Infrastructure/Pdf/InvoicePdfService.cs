@@ -2,6 +2,7 @@ using System.Globalization;
 using Invora.Application.Abstractions;
 using Invora.Contracts.Retail;
 using Invora.Domain.Modules.Invoices;
+using Invora.Domain.Modules.Retail;
 using Invora.Infrastructure.Modules.Sales;
 using Invora.Infrastructure.Modules.Retail;
 using MigraDoc.DocumentObjectModel;
@@ -47,7 +48,8 @@ public sealed class InvoicePdfService(SalesService sales) : IInvoicePdfService
         first.Cells[1].AddParagraph("Place of supply: "+GstSupply.Label(string.IsNullOrEmpty(invoice.SupplyStateCode)?(invoice.Interstate?invoice.CustomerStateCode:invoice.Seller.StateCode):invoice.SupplyStateCode));
         first.Cells[1].AddParagraph(invoice.Interstate?"Inter-state · IGST":"Intra-state · CGST + SGST / UTGST");
         if(!string.IsNullOrEmpty(invoice.OriginalInvoiceNumber))first.Cells[1].AddParagraph("Original invoice: "+invoice.OriginalInvoiceNumber+" · "+invoice.OriginalInvoiceDate?.ToString("dd-MMM-yyyy",CultureInfo.InvariantCulture));
-        var buyer=header.AddRow();buyer.Cells[0].AddParagraph("Buyer (Bill to)").Format.Font.Bold=true;buyer.Cells[0].AddParagraph(invoice.CustomerName);if(!string.IsNullOrWhiteSpace(invoice.CustomerAddress))buyer.Cells[0].AddParagraph(invoice.CustomerAddress);buyer.Cells[0].AddParagraph("GSTIN: "+(string.IsNullOrEmpty(invoice.CustomerGstin)?"Unregistered customer":invoice.CustomerGstin));buyer.Cells[0].AddParagraph("Contact: "+invoice.CustomerPhone+(string.IsNullOrEmpty(invoice.CustomerAlternatePhone)?"":" / "+invoice.CustomerAlternatePhone));buyer.Cells[0].AddParagraph("State: "+GstSupply.Label(string.IsNullOrEmpty(invoice.CustomerStateCode)?invoice.SupplyStateCode:invoice.CustomerStateCode));buyer.Cells[1].AddParagraph("Delivery / Terms").Format.Font.Bold=true;buyer.Cells[1].AddParagraph(invoice.Seller.ReturnPolicy);buyer.Cells[1].AddParagraph(invoice.Seller.WarrantyTerms);
+        var buyer=header.AddRow();buyer.Cells[0].AddParagraph("Buyer (Bill to)").Format.Font.Bold=true;buyer.Cells[0].AddParagraph(invoice.CustomerName);if(!string.IsNullOrWhiteSpace(invoice.CustomerAddress))buyer.Cells[0].AddParagraph(invoice.CustomerAddress);buyer.Cells[0].AddParagraph("GSTIN: "+(string.IsNullOrEmpty(invoice.CustomerGstin)?"Unregistered customer":invoice.CustomerGstin));buyer.Cells[0].AddParagraph("Contact: "+invoice.CustomerPhone+(string.IsNullOrEmpty(invoice.CustomerAlternatePhone)?"":" / "+invoice.CustomerAlternatePhone));buyer.Cells[0].AddParagraph("State: "+GstSupply.Label(string.IsNullOrEmpty(invoice.CustomerStateCode)?invoice.SupplyStateCode:invoice.CustomerStateCode));buyer.Cells[1].AddParagraph("Delivery / Terms").Format.Font.Bold=true;buyer.Cells[1].AddParagraph(invoice.Seller.ReturnPolicy);buyer.Cells[1].AddParagraph(WarrantyPolicy.InvoiceTerms(invoice.Seller.WarrantyTerms));
+        if(invoice.Finance is { } finance){var row=header.AddRow();row.Cells[0].AddParagraph("Finance details").Format.Font.Bold=true;row.Cells[0].AddParagraph("Provider: "+(FinanceProviderNames.Canonical(finance.Provider)??finance.Provider));if(!string.IsNullOrWhiteSpace(finance.Reference))row.Cells[0].AddParagraph("Application / agreement: "+finance.Reference);}
         section.AddParagraph();var table=section.AddTable();table.Borders.Width=0.5;
         foreach(var width in new[]{0.6,8.0,1.5,1.0,2.7,0.8,4.0})table.AddColumn(Unit.FromCentimeter(width));
         var headings=table.AddRow();headings.HeadingFormat=true;headings.Shading.Color=Colors.LightGray;

@@ -8,6 +8,8 @@ using Invora.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using PdfSharp.Pdf.IO;
+using PdfSharp.Pdf;
 using Xunit;
 namespace Invora.IntegrationTests;
 
@@ -98,13 +100,59 @@ public sealed partial class RetailApiTests
         var history=await client.GetFromJsonAsync<JsonElement>($"/api/v1/lenden/collections/{first}/history?branchId={branch}&kind=existing-due");Assert.Equal(2,history.GetProperty("items").GetArrayLength());
         var other=await Id("/customers",new PartyRequest("Other","9000000090"));Assert.False((await Post("/lenden/followups",new FollowUpRequest(branch,other,"Promise","Wrong account",date.AddDays(20),ExistingDueId:first))).IsSuccessStatusCode);
     }
+    [Fact] public async Task CustomerRegisterExportsAllAccountsAndA4CallSheetWithoutDoubleCountingDocuments()
+    {
+        await Id("/lenden/entries",new LenDenRequest(branch,customer,"Out",3500,1,date,"","Money given"));
+        var other=await Id("/customers",new PartyRequest("Collection customer","9000000077",AlternatePhone:"9000000078"));
+        await Id("/lenden/existing-dues",new ExistingDueRequest(branch,other,"DOWN-1","Phone down payment","",4500,date,date.AddDays(10)));
+        var firstPage=await client.GetFromJsonAsync<JsonElement>($"/api/v1/lenden/accounts?branchId={branch}&filter=owed&pageSize=1");
+        Assert.Equal(2,firstPage.GetProperty("totalItems").GetInt32());
+        var csv=await client.GetStringAsync($"/api/v1/lenden/accounts/export?branchId={branch}&filter=owed");
+        Assert.Contains("Collection customer",csv);Assert.Contains("Customer",csv);Assert.Contains("9000000078",csv);
+        Assert.Contains("3500.00",csv);Assert.Contains("4500.00",csv);Assert.Contains("8000.00",csv);
+        Assert.Contains("Open document total (reference only; do not add to Lena hai)",csv);
+        Assert.Contains("16 Oct 2026",csv);
+        var narrowed=await client.GetStringAsync($"/api/v1/lenden/accounts/export?branchId={branch}&filter=owed&search=9000000078");
+        Assert.Contains("Collection customer",narrowed);Assert.DoesNotContain("3500.00",narrowed);
+        var pdf=await client.GetByteArrayAsync($"/api/v1/lenden/accounts/call-sheet/pdf?branchId={branch}");
+        Assert.True(pdf.AsSpan().StartsWith("%PDF-"u8));
+        using var document=PdfReader.Open(new MemoryStream(pdf),PdfDocumentOpenMode.Import);
+        Assert.True(document.PageCount>=1);Assert.Equal(210,document.Pages[0].Width.Millimeter,1);Assert.Equal(297,document.Pages[0].Height.Millimeter,1);
+        for(var i=0;i<32;i++)
+        {
+            var person=await Id("/customers",new PartyRequest("Call sheet person "+i,"8000000"+i.ToString("D3")));
+            await Id("/lenden/entries",new LenDenRequest(branch,person,"Out",100+i,1,date,"","Follow-up loan"));
+        }
+        var longPdf=await client.GetByteArrayAsync($"/api/v1/lenden/accounts/call-sheet/pdf?branchId={branch}");
+        using var pages=PdfReader.Open(new MemoryStream(longPdf),PdfDocumentOpenMode.Import);
+        Assert.True(pages.PageCount>1);foreach(var sheet in pages.Pages){Assert.Equal(210,sheet.Width.Millimeter,1);Assert.Equal(297,sheet.Height.Millimeter,1);}
+    }
+    [Fact] public async Task RegisterExportShowsCustomerAddressAndOriginalDatesForOpenDebts()
+    {
+        var person=await Id("/customers",new PartyRequest("Dated register customer","9000000066",Address:"42 Market Road, Sarangpur"));
+        await Id("/lenden/entries",new LenDenRequest(branch,person,"Out",1000,1,new DateOnly(2026,9,1),"HAND-1","Phone money given"));
+        await Id("/lenden/entries",new LenDenRequest(branch,person,"Out",500,1,new DateOnly(2026,9,15),"HAND-2","Extra money given"));
+        await Id("/lenden/entries",new LenDenRequest(branch,person,"In",600,1,date,"REPAY-1","Partial repayment"));
+        await Id("/lenden/existing-dues",new ExistingDueRequest(branch,person,"RENO-DP","Reno down payment","Bajaj agreement",1200,new DateOnly(2026,8,20),date.AddDays(7)));
+        var direct=await client.GetFromJsonAsync<JsonElement>($"/api/v1/lenden/accounts/{person}?branchId={branch}");
+        Assert.Equal(2100,direct.GetProperty("lenaHai").Amount());
+        Assert.Equal(HttpStatusCode.NotFound,(await client.GetAsync($"/api/v1/lenden/accounts/{person}?branchId={Guid.NewGuid()}")).StatusCode);
+        var csv=await client.GetStringAsync($"/api/v1/lenden/accounts/export?branchId={branch}&search=9000000066");
+        Assert.Contains("42 Market Road, Sarangpur",csv);Assert.Contains("20 Aug 2026",csv);Assert.Contains("01 Sep 2026",csv);Assert.Contains("15 Sep 2026",csv);
+        Assert.Contains("Reno down payment",csv);Assert.Contains("Phone money given",csv);Assert.Contains("Extra money given",csv);
+        Assert.Contains("INR 400.00",csv);Assert.Contains("INR 500.00",csv);Assert.DoesNotContain("REPAY-1",csv);
+        var pdf=await client.GetByteArrayAsync($"/api/v1/lenden/accounts/call-sheet/pdf?branchId={branch}&search=9000000066");
+        Assert.True(pdf.AsSpan().StartsWith("%PDF-"u8));
+        using var document=PdfReader.Open(new MemoryStream(pdf),PdfDocumentOpenMode.Import);
+        Assert.Equal(210,document.Pages[0].Width.Millimeter,1);
+    }
     [Fact] public async Task CollectionAccessAndImportsEnforcePermissionsAndBranchScope()
     {
         var old=await Id("/lenden/existing-dues",OldDue());
         Assert.Equal(HttpStatusCode.NotFound,(await client.GetAsync($"/api/v1/lenden/collections?branchId={Guid.NewGuid()}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound,(await Post("/payments",new PaymentRequest(branch,await Id("/customers",new PartyRequest("Other","9000000080")),10,1,date,"","Wrong party",[],ExistingDueId:old))).StatusCode);
         var staff=await client.PostAsJsonAsync("/api/v1/users",new StaffRequest("collection-viewer","Viewer","collection-viewer-password-2026",["customers.credit.view"],[branch]));staff.EnsureSuccessStatusCode();var login=await client.PostAsJsonAsync("/api/v1/auth/login",new LoginRequest("collection-viewer","collection-viewer-password-2026"));client.DefaultRequestHeaders.Authorization=new("Bearer",(await login.Content.ReadFromJsonAsync<SessionView>())!.AccessToken);
-        Assert.True((await client.GetAsync($"/api/v1/lenden/collections?branchId={branch}")).IsSuccessStatusCode);Assert.Equal(HttpStatusCode.Forbidden,(await Post("/lenden/existing-dues",OldDue("NO"))).StatusCode);Assert.Equal(HttpStatusCode.Forbidden,(await client.GetAsync($"/api/v1/lenden/collections/export?branchId={branch}")).StatusCode);
+        Assert.True((await client.GetAsync($"/api/v1/lenden/collections?branchId={branch}")).IsSuccessStatusCode);Assert.Equal(HttpStatusCode.Forbidden,(await Post("/lenden/existing-dues",OldDue("NO"))).StatusCode);Assert.Equal(HttpStatusCode.Forbidden,(await client.GetAsync($"/api/v1/lenden/collections/export?branchId={branch}")).StatusCode);Assert.Equal(HttpStatusCode.Forbidden,(await client.GetAsync($"/api/v1/lenden/accounts/export?branchId={branch}")).StatusCode);Assert.Equal(HttpStatusCode.Forbidden,(await client.GetAsync($"/api/v1/lenden/accounts/call-sheet/pdf?branchId={branch}")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,(await Post("/payments/allocate-account-credit",new AllocateCustomerCreditRequest(branch,customer))).StatusCode);
     }
     [Fact] public async Task ReviewedDueImportBelongsToItsReviewerAndRejectsChangedCustomerMatching()

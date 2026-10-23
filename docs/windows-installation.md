@@ -38,6 +38,8 @@ Business records live in **`invora_database`** and uploaded private bills in **`
 
 Use the project's encrypted backup/restore scripts from a Linux/WSL shell with Docker integration and the configured RSA keys, as described in [deployment and recovery](deployment.md). Stop API/web during the backup window so the database and document archive agree; leave the database running. Store backups off the shop PC, retain multiple versions, and test recovery. Docker's [volume/VM backup documentation](https://docs.docker.com/desktop/settings-and-maintenance/backup-and-restore/) is useful for host recovery but does not replace the application's verified database-and-documents backup process.
 
+The optional [offsite backup command](offsite-backups.md) pauses/resumes API/web and transfers an encrypted archive to a configured second drive and/or rclone cloud bucket. On Windows, run it in WSL with Docker Desktop integration; verify that WSL can see the external drive and remote configuration before scheduling it.
+
 ## Troubleshooting
 
 Double-click **Check Invora**, or `Check-Invora.cmd` in the application folder. It shows PASS/WARN/FAIL with next steps and saves `artifacts\invora-check-<UTC timestamp>.json`. The checks inspect required files, the local address, Docker, existing data volumes, Compose configuration, running services and application readiness. They do not start/stop containers, migrate, generate credentials or change shop records. Only the diagnostic report is written.

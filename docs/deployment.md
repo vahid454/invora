@@ -42,6 +42,8 @@ Set:
 
 Run during a maintenance window with writes/uploads stopped. A PostgreSQL dump is internally consistent; quiescing uploads ensures that every committed file record has a corresponding archived blob. Preserve the archive intact, transfer it to a configured private off-host destination, verify freshness, and apply the chosen retention schedule. The script does not invent an off-host account or scheduler.
 
+For an operator command that pauses the API/web services, resumes them after the snapshot, and copies the encrypted archive to a separate drive and/or configured rclone bucket, see [offsite backups](offsite-backups.md). It still requires shop-owned destinations, scheduling and restore rehearsals.
+
 ## Restore rehearsal
 
 `scripts/restore.sh path/to/archive.backup` verifies the signature **before decryption**, decrypts the archive, creates a fresh database and restores its documents into an isolated directory. It refuses database names that do not start with `invora_restore_`; `createdb` fails if the chosen destination exists. It never overwrites the live database.

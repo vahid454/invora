@@ -112,7 +112,20 @@ button:disabled{cursor:not-allowed;opacity:.55}
 .invoice-date-filters label{margin:0;flex:0 1 180px;min-width:150px}
 .invoice-date-filters .date-filter-note{flex-basis:100%;margin:0}
 .sale-payment-entry{border:0;padding:0;margin:22px 0}
+.sale-checkout-discount{border:1px solid #cbd9cb;border-radius:14px;padding:15px 18px 17px;margin:20px 0 18px;background:#f6faf4}
+.sale-checkout-discount legend{padding:0 7px;font-weight:700;color:var(--ink)}
+.sale-checkout-discount label{display:block;margin:5px 0 8px}
+.sale-checkout-discount .small{margin:6px 0 0;line-height:1.55}
+.checkout-discount-row{color:#276344}
 .sale-payment-entry legend{font-weight:700;margin-bottom:6px}
+.sale-finance-entry{border:1px solid var(--line);border-radius:14px;padding:16px 18px 18px;margin:18px 0 22px;background:var(--soft-surface)}
+.sale-finance-entry legend{padding:0 7px;font-weight:700;color:var(--ink)}
+.sale-finance-entry label{display:block;margin-top:12px}
+.sale-finance-entry .small{margin:5px 0 0}
+.account-after{display:grid;grid-template-columns:1fr auto;gap:4px 12px;border-top:1px solid var(--line);padding:14px 0;margin-top:8px}
+.account-after strong,.account-after small{grid-column:2;text-align:right;font-variant-numeric:tabular-nums}
+.account-after span{grid-row:1 / span 2;align-self:center;font-weight:650}
+.trade-items{align-self:start}
 .sale-payment-entry .small{margin:0 0 14px}
 .sale-payment-summary{border-top:1px solid var(--line);padding-top:12px;margin-top:8px}
 .sale-payment-summary .summary-row{gap:12px;font-variant-numeric:tabular-nums}
@@ -128,3 +141,4 @@ button:disabled{cursor:not-allowed;opacity:.55}
 .stock-book-value{display:block;margin-top:4px;font-size:10px;color:var(--muted);white-space:nowrap}
 
 .counter-accessory-entry{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 18px}.trade-items .counter-accessory-entry{margin:16px 24px}.counter-accessory-entry .small{flex:1 1 230px}.counter-accessory-entry button{min-height:44px}@media(max-width:600px){.trade-items .counter-accessory-entry{margin:16px}.counter-accessory-entry .small{flex-basis:100%}}
+.inventory-add-actions{align-items:center;gap:12px;flex-wrap:wrap}.inventory-add-actions .text-link{padding:8px 4px}.badge.stock-sold{background:#e9ece9;color:#42534c;border:1px solid #ccd5cf}.badge.stock-alert{background:#fff0e6;color:#934b1f;border:1px solid #edc8aa}.badge.stock-transit{background:#e8f0f6;color:#365b78;border:1px solid #c5d6e4}

@@ -42,6 +42,8 @@ If existing volumes are found without the original `.env`, startup stops. Recove
 
 Encrypted backup and restore scripts run from macOS Terminal with Docker and an OpenSSL version supporting their RSA-OAEP/SHA-256 options. See [testing](testing.md) for the backup/restore acceptance scope. Configure recipient/signing keys and an off-host destination as described in [deployment and recovery](deployment.md). Run `bash scripts/backup.sh` from the application folder with API/web stopped and the database running, then start the shop again. Copy private `.env` separately into protected recovery storage. The launcher does not schedule or upload backups automatically.
 
+For a command that pauses and resumes API/web around the encrypted snapshot and then copies it to a configured second drive and/or cloud bucket, see [offsite backups](offsite-backups.md). A fresh installation still needs a shop-owned destination and a scheduled job; this development Mac now has a configured private Backblaze bucket and daily 9 PM LaunchAgent. That schedule is local to this Mac and does not transfer with Invora.app.
+
 ## Troubleshooting
 
 | Message or problem | Next step |

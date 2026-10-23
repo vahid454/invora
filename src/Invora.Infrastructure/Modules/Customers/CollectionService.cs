@@ -23,7 +23,8 @@ public sealed class CollectionService(RetailOperations r)
             let credit=r.Db.Set<SaleReturn>().Where(a=>a.SaleId==d.Id).Sum(a=>(decimal?)a.Credit)??0
             let paid=r.Db.Set<PaymentAllocation>().Where(a=>a.SaleId==d.Id).Sum(a=>(decimal?)(a.Amount-(r.Db.Set<AllocationReversal>().Where(v=>v.PaymentAllocationId==a.Id).Sum(v=>(decimal?)v.Amount)??0)))??0
             let nonCash=r.Db.Set<SaleNonCashSettlement>().Where(a=>a.SaleId==d.Id).Sum(a=>(decimal?)(a.Amount-(r.Db.Set<NonCashSettlementReversal>().Where(v=>v.SaleNonCashSettlementId==a.Id).Sum(v=>(decimal?)v.Amount)??0)))??0
-            select new CollectionRow(d.Id,"invoice",p.Id,p.Name,p.Phone,p.AlternatePhone,d.Number,"Invoice · "+d.Reference,"",d.BusinessDate,d.DueDate,d.Total-credit,paid+nonCash,d.Total-credit-paid-nonCash,0,0,false,null,null,"Clear")).ToArrayAsync(ct);
+            let finance=r.Db.Set<LedgerEntry>().Where(e=>e.SaleId==d.Id&&(e.Kind=="FinanceAssigned"||e.Kind=="FinanceReturnReversal")).Sum(e=>(decimal?)(e.Credit-e.Debit))??0
+            select new CollectionRow(d.Id,"invoice",p.Id,p.Name,p.Phone,p.AlternatePhone,d.Number,"Invoice · "+d.Reference,"",d.BusinessDate,d.DueDate,d.Total-credit-finance,paid+nonCash,d.Total-credit-finance-paid-nonCash,0,0,false,null,null,"Clear")).ToArrayAsync(ct);
         var all=old.Concat(sales).ToArray();
         var safety=await CustomerSafetyService.StatusesAsync(r.Db,all.Select(x=>x.CustomerId),ct);
         var balances=await r.Db.Set<LedgerEntry>().Where(x=>x.BranchId==branch&&!x.Kind.StartsWith("LenDen")).GroupBy(x=>x.PartyId).Select(g=>new{Id=g.Key,Amount=g.Sum(x=>x.Debit-x.Credit)}).ToDictionaryAsync(x=>x.Id,x=>x.Amount,ct);
@@ -38,6 +39,8 @@ public sealed class CollectionService(RetailOperations r)
             return x with{Outstanding=Math.Max(0,x.Outstanding),AccountBalance=balance,UnallocatedCredit=Math.Max(0,totals[x.CustomerId]-balance),PromiseDate=promise?.PromiseDate,NextContactDate=entries.FirstOrDefault()?.NextContactDate,SafetyStatus=safety.GetValueOrDefault(x.CustomerId,"Clear")};
         }).ToArray();
     }
+    public async Task<CollectionRow[]> OpenRowsAsync(Guid branch,CancellationToken ct)=>
+        (await RowsAsync(branch,ct)).Where(x=>x.Outstanding>0).ToArray();
     private static CollectionRow[] Filter(CollectionRow[] rows,string? search,string? status,DateOnly? from,DateOnly? to,DateOnly today)
     {
         RetailOperations.Check(from is null||to is null||from<=to,"Start date must be on or before end date.");

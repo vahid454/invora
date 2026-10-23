@@ -1,11 +1,36 @@
 using Invora.Domain.Common;
 using Invora.Domain.Modules.Payments;
+using Invora.Domain.Modules.Retail;
 using Invora.Domain.Modules.Taxes;
+using Invora.Contracts.Retail;
 using Xunit;
 namespace Invora.UnitTests;
 
 public sealed class FinancialRulesTests
 {
+    [Fact]
+    public void InvoiceWarrantyTermsOmitUnusedPhonePolicyEvenForOldSnapshots()
+    {
+        const string oldTerms = "Warranty, where applicable, is covered by the manufacturer / authorized service partner, not the shop. Customers must visit the authorized service centre for service. Used phones are sold without warranty.";
+        Assert.DoesNotContain("Used phones", WarrantyPolicy.Terms);
+        Assert.Equal(WarrantyPolicy.Terms, WarrantyPolicy.InvoiceTerms(oldTerms));
+    }
+
+    [Theory]
+    [InlineData("Bajaj", "BAJAJ")]
+    [InlineData("BAJAJ", "BAJAJ")]
+    [InlineData(" bajaj ", "BAJAJ")]
+    [InlineData("homecredit", "HomeCredit")]
+    [InlineData("TVS", "TVS")]
+    public void FinanceProviderNameUsesConsistentInvoiceSpelling(string input, string expected) =>
+        Assert.Equal(expected, FinanceProviderNames.Canonical(input));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Unknown Finance")]
+    public void UnsupportedFinanceProviderIsNotAccepted(string input) =>
+        Assert.Null(FinanceProviderNames.Canonical(input));
+
     [Fact]
     public void PartialReceiptAndLaterPaymentReconcile()
     {

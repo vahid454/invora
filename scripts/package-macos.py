@@ -54,7 +54,7 @@ def main():
     with (APP / 'Contents/Info.plist').open('wb') as f:
         plistlib.dump({'CFBundleExecutable': 'Invora', 'CFBundleIdentifier': 'app.invora.shop',
                       'CFBundleName': 'Invora', 'CFBundleDisplayName': 'Invora', 'CFBundlePackageType': 'APPL',
-                      'CFBundleShortVersionString': '1.3.2', 'CFBundleVersion': '20261017.1',
+                      'CFBundleShortVersionString': '1.3.8', 'CFBundleVersion': '20261021.1',
                       'LSMinimumSystemVersion': '14.0', 'NSHighResolutionCapable': True, 'CFBundleIconFile': 'Invora.icns',
                       'NSPrincipalClass': 'NSApplication'}, f)
     guide = ROOT / 'tools/Invora.Mac/Install Invora.html'

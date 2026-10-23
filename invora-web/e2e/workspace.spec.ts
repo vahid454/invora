@@ -15,7 +15,7 @@ test.beforeAll(async({request})=>{
  customer=await post('/customers',{name:'Browser Customer '+imei,phone:'9000000008',stateCode:'23'});
  await post('/inventory/adjustments',{branchId:branch,productVariantId:product,quantity:1,unitCost:'1000',reason:'Isolated browser-test opening stock',devices:[{imei1:imei}]});
 });
-test.beforeEach(async({page})=>{await page.goto('/login');await page.getByLabel('Login',{exact:true}).fill(credentials.login);await page.getByLabel('Password',{exact:true}).fill(credentials.password);await page.getByRole('button',{name:'Sign in →'}).click();await expect(page.getByRole('heading',{level:1})).toBeVisible();await expect(page).toHaveURL(/\/$/);});
+test.beforeEach(async({page})=>{await page.goto('/login');await page.getByLabel('Login',{exact:true}).fill(credentials.login);await page.getByLabel('Password',{exact:true}).fill(credentials.password);await page.getByRole('button',{name:'Sign in →'}).click();await expect(page.getByRole('heading',{level:1})).toBeVisible();await expect(page).toHaveURL(/\/$/);await page.getByLabel('Active branch',{exact:true}).selectOption(branch);});
 test('scanner sale posts, refresh restores session, credit note and refund reconcile',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/sales/new');
  await page.getByRole('textbox',{name:'Scan IMEI, serial or barcode'}).fill(imei);await page.getByRole('textbox',{name:'Scan IMEI, serial or barcode'}).press('Enter');await expect(page.locator('tbody')).toContainText(imei);

@@ -48,7 +48,7 @@ For independent API/UI development, configure the connection and auth environmen
 
 Browser acceptance uses Playwright against an **isolated development database**. See [testing](docs/testing.md) for its setup and hardware acceptance checklist. CI builds and tests the API, UI, migrations and container images.
 
-Cloud rollout remains environment-dependent: AWS account/region, domain, TLS certificates and off-host backup destination must be configured. No AWS resources have been created. Repairs/finance-provider workflows, automated messaging integrations, subscription billing and AI/OCR are the separately described Phase 3/4 extensions.
+Cloud rollout remains environment-dependent: AWS account/region, domain, TLS certificates and off-host backup destination must be configured. No AWS resources have been created. Financed sales can split an agreed customer down payment from a provider-assigned amount; provider payment and reconciliation remain an offline process. Repairs, automated messaging integrations, subscription billing and AI/OCR are separately described later extensions.
 
 Counter workflows include per-phone color/memory/identity entry, old-phone exchanges, two customer phone numbers, payment promises and WhatsApp/SMS/call actions, shareable account PDFs, clear advance/refund choices and guided branch transfers.
 

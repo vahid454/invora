@@ -86,7 +86,10 @@ public sealed class RetailOperations(InvoraDbContext db, ICurrentUser user)
         var cash = await allocations.SumAsync(x=>x.Amount-db.Set<AllocationReversal>().Where(r=>r.PaymentAllocationId==x.Id).Sum(r=>(decimal?)r.Amount).GetValueOrDefault(),ct);
         return cash + (sale is not null ? await db.Set<SaleNonCashSettlement>().Where(x=>x.SaleId==sale).SumAsync(x=>x.Amount-db.Set<NonCashSettlementReversal>().Where(y=>y.SaleNonCashSettlementId==x.Id).Sum(y=>(decimal?)y.Amount).GetValueOrDefault(),ct) : 0);
     }
-    public async Task<decimal> SaleDueAsync(Sale sale,CancellationToken ct)=>Math.Max(0,sale.Total-await db.Set<SaleReturn>().Where(x=>x.SaleId==sale.Id).SumAsync(x=>x.Credit,ct)-await AllocatedAsync(sale.Id,null,ct));
+    public async Task<decimal> FinanceAssignedAsync(Guid saleId,CancellationToken ct)=>await db.Set<LedgerEntry>()
+        .Where(x=>x.SaleId==saleId && (x.Kind=="FinanceAssigned"||x.Kind=="FinanceReturnReversal"))
+        .SumAsync(x=>x.Credit-x.Debit,ct);
+    public async Task<decimal> SaleDueAsync(Sale sale,CancellationToken ct)=>Math.Max(0,sale.Total-await db.Set<SaleReturn>().Where(x=>x.SaleId==sale.Id).SumAsync(x=>x.Credit,ct)-await AllocatedAsync(sale.Id,null,ct)-await FinanceAssignedAsync(sale.Id,ct));
     public async Task<decimal> ExistingDueBalanceAsync(ExistingDue due,CancellationToken ct)
     {
         if(await db.Set<LedgerEntry>().AnyAsync(x=>x.ExistingDueId==due.Id && x.Kind=="OpeningDueReversal",ct))return 0;

@@ -57,9 +57,9 @@
 </label>
 @if(!simpleQuantity()){<label>MRP (₹)<input formControlName="mrp" type="number" min="0" step="0.01"></label>}</div>
 @if(allowOpeningStock()&&!product()&&auth.can('inventory.adjust')&&auth.can('inventory.cost.view')){<section class="product-stock-entry">
-<label class="checkbox">
+@if(stockOnCreate()){<div class="panel-note"><strong>Product + physical stock</strong><br>Saving here records the counted items in Inventory now. For a new supplier bill and payable, use Receive purchase instead.</div>}@else{<label class="checkbox">
 <input type="checkbox" formControlName="addStock"> Add stock already in this shop now</label>
-<small class="muted">For existing stock only. Use a purchase to record a new supplier invoice and its payable.</small>@if(form.controls.addStock.value){<div class="form-grid">@if(form.controls.serialized.value!=='true'){<label>Quantity<input formControlName="quantity" type="number" min="1" max="100000">
+<small class="muted">For existing stock only. Use a purchase to record a new supplier invoice and its payable.</small>}@if(form.controls.addStock.value){<div class="form-grid">@if(form.controls.serialized.value!=='true'){<label>Quantity<input formControlName="quantity" type="number" min="1" max="100000">
 </label>}<label>Cost per unit (₹)<input formControlName="unitCost" type="number" min="0" step="0.01" placeholder="Actual inventory cost">
 </label>
 </div>
