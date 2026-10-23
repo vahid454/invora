@@ -1,8 +1,8 @@
 # Selling and licensing Invora
 
-Version 1.3.8 lets Inventory **Add product** save the physical units with their cost and identities. Stock status colours distinguish available and sold items. A financed checkout discount lowers the invoice and agreed customer down payment without inventing a payment or LenDen due; the internal finance and down-payment amounts no longer print on the customer PDF. Version 1.3.7 introduced separate provider assignment and customer down payment, provider search/export, return reversals and the updated warranty wording. The BAJAJ spelling and direct **Print invoice** / **Download invoice** buttons remain. This update requires no database migration and does not silently reclassify older posted finance invoices. Retain the shop's configuration and volumes; back up before updating.
+Version 1.3.9 refreshes the Mac and Windows installers with the current application source, a hosted-shop desktop connection option and backup-health guidance. The local Docker/PostgreSQL shop remains the offline installation path. Version 1.3.8 lets Inventory **Add product** save the physical units with their cost and identities. Stock status colours distinguish available and sold items. A financed checkout discount lowers the invoice and agreed customer down payment without inventing a payment or LenDen due; the internal finance and down-payment amounts no longer print on the customer PDF. This update requires no database migration and does not silently reclassify older posted finance invoices. Retain the shop's configuration and volumes; back up before updating.
 
-The Mac and Windows 1.3.8 packages are built from the same release source. The Windows executable is cross-published and its embedded archive is verified on Mac; native Windows acceptance and signing remain required before public delivery.
+The Mac and Windows 1.3.9 packages are built from the same release source. The Windows executable is cross-published and its embedded archive is verified on Mac; native Windows acceptance and signing remain required before public delivery.
 
 ## What the shop receives
 

@@ -3,6 +3,7 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import os
+import shlex
 import subprocess
 import tempfile
 import threading
@@ -18,7 +19,9 @@ function downloadFixture(name,type,body){const a=document.createElement('a');a.h
 
 def main():
     binary=ROOT/'artifacts/invora-webview-tests'
-    subprocess.run(['xcrun','swiftc','-swift-version','5','-module-cache-path',str(ROOT/'artifacts/swift-module-cache'),str(ROOT/'tools/Invora.Mac/ShopWindow.swift'),str(ROOT/'tests/Invora.Mac.WebView/main.swift'),'-o',str(binary)],check=True)
+    compiler=shlex.split(os.environ.get('INVORA_SWIFTC','xcrun swiftc'))
+    sdk=['-sdk',os.environ['INVORA_MACOS_SDK']] if os.environ.get('INVORA_MACOS_SDK') else []
+    subprocess.run([*compiler,'-swift-version','5',*sdk,'-module-cache-path',str(ROOT/'artifacts/swift-module-cache'),str(ROOT/'tools/Invora.Mac/ShopWindow.swift'),str(ROOT/'tests/Invora.Mac.WebView/main.swift'),'-o',str(binary)],check=True)
     server=ThreadingHTTPServer(('127.0.0.1',0),Fixture)
     thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
     try:

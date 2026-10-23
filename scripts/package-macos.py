@@ -63,7 +63,7 @@ def main():
     with (APP / 'Contents/Info.plist').open('wb') as f:
         plistlib.dump({'CFBundleExecutable': 'Invora', 'CFBundleIdentifier': 'app.invora.shop',
                       'CFBundleName': 'Invora', 'CFBundleDisplayName': 'Invora', 'CFBundlePackageType': 'APPL',
-                      'CFBundleShortVersionString': '1.3.8', 'CFBundleVersion': '20261021.1',
+                      'CFBundleShortVersionString': '1.3.9', 'CFBundleVersion': '20261023.1',
                       'LSMinimumSystemVersion': '14.0', 'NSHighResolutionCapable': True, 'CFBundleIconFile': 'Invora.icns',
                       'NSPrincipalClass': 'NSApplication'}, f)
     guide = ROOT / 'tools/Invora.Mac/Install Invora.html'
@@ -78,12 +78,14 @@ def main():
     if archive.exists(): archive.unlink()
     run('/usr/bin/ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', APP, archive)
     dmg = OUT / 'Invora-Mac.dmg'
-    if dmg.exists(): dmg.unlink()
-    run('/usr/bin/hdiutil', 'create', '-volname', 'Invora', '-srcfolder', STAGE, '-ov', '-format', 'UDZO', dmg)
-    for artifact in (archive, dmg):
+    skip_dmg = os.environ.get('INVORA_SKIP_DMG') == '1'
+    if not skip_dmg:
+        if dmg.exists(): dmg.unlink()
+        run('/usr/bin/hdiutil', 'create', '-volname', 'Invora', '-srcfolder', STAGE, '-ov', '-format', 'UDZO', dmg)
+    for artifact in ((archive,) if skip_dmg else (archive, dmg)):
         digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
         artifact.with_suffix(artifact.suffix + '.sha256').write_text(digest + '  ' + artifact.name + '\n')
-    print(f'Built universal Mac app, DMG and ZIP with {len(manifest)} verified payload files. No configuration, backup or shop records included.')
+    print(f'Built universal Mac app and ZIP{" (DMG skipped)" if skip_dmg else " and DMG"} with {len(manifest)} verified payload files. No configuration, backup or shop records included.')
 
 
 if __name__ == '__main__':

@@ -4,7 +4,7 @@ The Windows release includes **`InvoraSetup.exe`** for a local shop and **`Invor
 
 ## Hosted shop (no Docker on the PC)
 
-First rebuild `tools/Invora.Desktop` from the current source with .NET 10; the older executable already in `artifacts/windows-desktop` predates hosted connection support. After vendor code signing and Windows acceptance, give the customer that rebuilt `Invora.Desktop.exe`. The customer opens it directly, enters the shop's root HTTPS address on first launch, and signs in. The app remembers the address; `Invora.Desktop.exe --configure-hosted` changes it. It can also be launched with `--hosted-url https://shop.example.com/`. Microsoft WebView2 Runtime is required. The production server owns the PostgreSQL database and uploaded documents, so internet is required for billing. Do not distribute or run `InvoraSetup.exe` for this hosted-only path.
+After vendor code signing and Windows acceptance, give the customer the current `artifacts/windows-desktop/Invora.Desktop.exe`. The customer opens it directly, enters the shop's root HTTPS address on first launch, and signs in. The app remembers the address; `Invora.Desktop.exe --configure-hosted` changes it. It can also be launched with `--hosted-url https://shop.example.com/`. Microsoft WebView2 Runtime is required. The production server owns the PostgreSQL database and uploaded documents, so internet is required for billing. Do not distribute or run `InvoraSetup.exe` for this hosted-only path.
 
 ## First installation
 
