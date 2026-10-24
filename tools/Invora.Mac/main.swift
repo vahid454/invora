@@ -71,6 +71,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         stack.addArrangedSubview(primary)
         let hosted = button("Connect to hosted shop…", #selector(connectHosted))
         stack.addArrangedSubview(hosted)
+        let recovery = NSStackView(); recovery.orientation = .horizontal; recovery.spacing = 10
+        recovery.addArrangedSubview(button("Backup folder", #selector(openBackups)))
+        recovery.addArrangedSubview(button("Check backup", #selector(checkBackup)))
+        recovery.addArrangedSubview(button("Prepare restore…", #selector(prepareRestore)))
+        stack.addArrangedSubview(recovery)
         let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.borderType = .bezelBorder
         output.isEditable = false; output.isSelectable = true; output.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         output.textContainerInset = NSSize(width: 10, height: 10)
@@ -142,6 +147,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         shop?.show(); window.orderOut(nil)
     }
     @objc func startShop() { perform { try engine.start() } }
+    @objc func openBackups() {
+        let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Invora Backups")
+        if FileManager.default.fileExists(atPath: folder.path) { NSWorkspace.shared.open(folder) }
+        else { status.stringValue = "No local backup folder is configured on this Mac yet. See the installation guide." }
+    }
+    @objc func checkBackup() {
+        let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Invora Backups")
+        let marker = folder.appendingPathComponent("last-success-utc")
+        guard let value = try? String(contentsOf: marker, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
+              let date = ISO8601DateFormatter().date(from: value) else {
+            status.stringValue = "No successful backup is recorded in this Mac's backup folder."; return
+        }
+        let hours = Date().timeIntervalSince(date) / 3600
+        status.stringValue = hours >= 0 && hours <= 30 ?
+            "Last successful backup: \(Int(hours)) hours ago. Check the folder for the newest .backup or .invora file." :
+            "Backup is overdue. Check Docker, internet and the backup log, then retry."
+    }
+    @objc func prepareRestore() {
+        let picker = NSOpenPanel()
+        picker.message = "Choose an Invora .invora recovery file. Existing shop records will not be changed."
+        picker.allowedContentTypes = [.data]
+        picker.canChooseDirectories = false; picker.allowsMultipleSelection = false
+        picker.beginSheetModal(for: window) { result in
+            guard result == .OK, let package = picker.url else { return }
+            guard package.pathExtension.lowercased() == "invora" else {
+                self.status.stringValue = "Choose a .invora recovery file."; return
+            }
+            let prompt = NSAlert(); prompt.messageText = "Recovery password"
+            prompt.informativeText = "This verifies and unpacks the selected file into a private folder. It does not replace a live database."
+            prompt.addButton(withTitle: "Verify and unpack"); prompt.addButton(withTitle: "Cancel")
+            let password = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 340, height: 24))
+            prompt.accessoryView = password
+            prompt.beginSheetModal(for: self.window) { answer in
+                guard answer == .alertFirstButtonReturn else { return }
+                let secret = password.stringValue
+                self.perform {
+                    let base = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Invora Recovery")
+                    try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+                    let destination = base.appendingPathComponent("restore-" + UUID().uuidString)
+                    let executable = Bundle.main.executableURL!.deletingLastPathComponent().appendingPathComponent("InvoraPortableRecovery")
+                    let process = Process(); process.executableURL = executable
+                    process.arguments = [package.path, destination.path, "--password-stdin"]
+                    let input = Pipe(); let output = Pipe()
+                    process.standardInput = input; process.standardOutput = output; process.standardError = output
+                    try process.run()
+                    try output.fileHandleForWriting.close()
+                    input.fileHandleForWriting.write(Data((secret + "\n").utf8))
+                    try input.fileHandleForWriting.close()
+                    let message = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+                    process.waitUntilExit()
+                    guard process.terminationStatus == 0 else { throw LauncherError(message: message.isEmpty ? "Recovery file could not be opened." : message) }
+                    DispatchQueue.main.async { NSWorkspace.shared.open(destination) }
+                    return nil
+                }
+            }
+        }
+    }
     @objc func connectHosted() {
         let alert = NSAlert()
         alert.messageText = "Connect to your hosted Invora shop"

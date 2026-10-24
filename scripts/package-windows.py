@@ -13,6 +13,7 @@ ROOT_FILES = {
     ".dockerignore", ".env.example", "docker-compose.yml",
     "docker-compose.production.yml", "docker-compose.dev.yml",
     "Start-Invora.cmd", "Stop-Invora.cmd", "Check-Invora.cmd", "Open-InvoraBrowser.cmd",
+    "Enable-Invora-Recovery.command",
 }
 TREES = {"src", "tests", "invora-web", "docs", "scripts", "deployment"}
 EXCLUDED = {
@@ -28,7 +29,7 @@ def included(path: Path) -> bool:
         return False
     if path.name.startswith(".env") and relative.as_posix() != ".env.example":
         return False
-    if path.suffix.lower() in {".pem", ".key", ".pfx", ".dump", ".backup", ".pyc", ".license"} or path.name.endswith(".sql.gz"):
+    if path.suffix.lower() in {".pem", ".key", ".pfx", ".dump", ".backup", ".invora", ".pyc", ".license"} or path.name.endswith(".sql.gz"):
         return False
     return relative.as_posix() in ROOT_FILES or relative.parts[0] in TREES
 
@@ -38,8 +39,11 @@ def main() -> None:
     parser.add_argument('--source-only', action='store_true', help='Omit the Windows desktop host; use browser fallback.')
     args = parser.parse_args()
     desktop = ROOT / 'artifacts/windows-desktop/Invora.Desktop.exe'
+    recovery = ROOT / 'artifacts/windows-recovery/Invora.Recovery.exe'
     if not args.source_only and not desktop.is_file():
         parser.error('Publish tools/Invora.Desktop to artifacts/windows-desktop first, or use --source-only for a browser-only source ZIP.')
+    if not args.source_only and not recovery.is_file():
+        parser.error('Publish tools/Invora.Recovery to artifacts/windows-recovery first, or use --source-only.')
     files = sorted(path for path in ROOT.rglob("*") if path.is_file() and included(path))
     OUTPUT.parent.mkdir(exist_ok=True)
     manifest = []
@@ -50,10 +54,10 @@ def main() -> None:
             archive.writestr(name, contents)
             manifest.append(f"{hashlib.sha256(contents).hexdigest()}  {name}")
         if not args.source_only:
-            contents = desktop.read_bytes()
-            name = 'desktop/Invora.Desktop.exe'
-            archive.writestr(name, contents)
-            manifest.append(f"{hashlib.sha256(contents).hexdigest()}  {name}")
+            for executable, name in ((desktop, 'desktop/Invora.Desktop.exe'), (recovery, 'desktop/Invora.Recovery.exe')):
+                contents = executable.read_bytes()
+                archive.writestr(name, contents)
+                manifest.append(f"{hashlib.sha256(contents).hexdigest()}  {name}")
         archive.writestr("release-sha256.txt", "\n".join(manifest) + "\n")
     with zipfile.ZipFile(OUTPUT) as archive:
         assert archive.testzip() is None

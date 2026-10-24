@@ -56,6 +56,9 @@ cleanup() {
 }
 trap cleanup EXIT
 run_dir=$(mktemp -d "$BACKUP_DESTINATION/.backup-run.XXXXXX")
+[[ -f .env && ! -L .env ]] || { echo 'Private shop .env is missing or linked; backup cannot be paired with its configuration.' >&2; exit 1; }
+cp -- .env "$run_dir/shop.env"
+chmod 600 "$run_dir/shop.env"
 
 running=$(docker compose ps --services --status running)
 if [[ $'\n'"$running"$'\n' == *$'\napi\n'* ]]; then restart_api=true; fi
@@ -96,6 +99,47 @@ if [[ -n "${BACKUP_RCLONE_REMOTE:-}" ]]; then
   remote="${BACKUP_RCLONE_REMOTE%/}/$archive_name"
   rclone copyto --immutable "$archive" "$remote"
   rclone copyto --immutable "$archive.sha256" "$remote.sha256"
+fi
+
+# Optional portable recovery file: encrypted DB/documents plus the matching
+# .env and recovery keys. Upload the normal archive first so it survives even
+# if portable packaging fails; a failed portable step still fails this job.
+if [[ -n "${BACKUP_PORTABLE_KEY_FILE:-}" ]]; then
+  : "${BACKUP_RECOVERY_PRIVATE_KEY:?Set the recipient private key for portable recovery}"
+  : "${BACKUP_RECOVERY_SIGNING_PUBLIC_KEY:?Set the trusted signing public key for portable recovery}"
+  command -v python3 >/dev/null || { echo 'Python 3 is required for portable recovery packaging.' >&2; exit 1; }
+  cmp -s .env "$run_dir/shop.env" || { echo 'Shop .env changed during the backup; portable package was not created.' >&2; exit 1; }
+  portable="$BACKUP_DESTINATION/${archive_name%.backup}.invora"
+  python3 scripts/portable-recovery.py create \
+    --backup "$archive" --env "$run_dir/shop.env" \
+    --private-key "$BACKUP_RECOVERY_PRIVATE_KEY" \
+    --signing-public-key "$BACKUP_RECOVERY_SIGNING_PUBLIC_KEY" \
+    --recipient-public-key "$BACKUP_PUBLIC_KEY" \
+    --signing-private-key "$BACKUP_SIGNING_KEY" \
+    --key-file "$BACKUP_PORTABLE_KEY_FILE" --output "$portable"
+  python3 scripts/portable-recovery.py verify "$portable" --key-file "$BACKUP_PORTABLE_KEY_FILE"
+  portable_name=$(basename "$portable")
+  if command -v shasum >/dev/null; then
+    (cd "$BACKUP_DESTINATION" && shasum -a 256 "$portable_name" > "$portable_name.sha256")
+  else
+    (cd "$BACKUP_DESTINATION" && sha256sum "$portable_name" > "$portable_name.sha256")
+  fi
+  if [[ -n "${BACKUP_EXTERNAL_DIR:-}" ]]; then
+    for item in "$portable" "$portable.sha256"; do
+      name=$(basename "$item")
+      [[ ! -e "$BACKUP_EXTERNAL_DIR/$name" ]] || { echo 'Portable recovery destination already exists.' >&2; exit 1; }
+      external_partial="$BACKUP_EXTERNAL_DIR/$name.partial"
+      cp "$item" "$external_partial"
+      cmp -s "$item" "$external_partial" || { echo 'Second-drive portable copy did not verify.' >&2; exit 1; }
+      mv "$external_partial" "$BACKUP_EXTERNAL_DIR/$name"
+      external_partial=''
+    done
+  fi
+  if [[ -n "${BACKUP_RCLONE_REMOTE:-}" ]]; then
+    rclone copyto --immutable "$portable" "${BACKUP_RCLONE_REMOTE%/}/$portable_name"
+    rclone copyto --immutable "$portable.sha256" "${BACKUP_RCLONE_REMOTE%/}/$portable_name.sha256"
+  fi
+  printf 'Password-protected one-file recovery package saved and copied: %s\n' "$portable"
 fi
 
 printf 'Verified encrypted backup saved locally and copied to every configured destination: %s\n' "$archive"

@@ -61,6 +61,8 @@ This application now provides installation, signed activation and renewal. Custo
 dotnet publish tools/Invora.Desktop -c Release -r win-x64 --self-contained true \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
   -p:EnableCompressionInSingleFile=true -p:DebugType=None -o artifacts/windows-desktop
+dotnet publish tools/Invora.Recovery -c Release -r win-x64 --self-contained true \
+  -p:PublishSingleFile=true -p:DebugType=None -o artifacts/windows-recovery
 python3 scripts/package-windows.py
 dotnet publish tools/Invora.Setup -c Release -r win-x64 --self-contained true \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \

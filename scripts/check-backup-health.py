@@ -7,6 +7,7 @@ This reads status markers only. It does not access the database, secrets or clou
 import argparse
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import shlex
 import sys
 
 
@@ -21,14 +22,29 @@ def timestamp(path: Path) -> datetime | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--destination", type=Path, default=Path(__file__).resolve().parent.parent / ".private-backups/backblaze-invora")
+    parser.add_argument("--destination", type=Path, help="Host backup folder; defaults to the installed schedule's destination")
     parser.add_argument("--max-age-hours", type=float, default=30)
     args = parser.parse_args()
     if args.max_age_hours <= 0:
         parser.error("--max-age-hours must be positive")
 
-    success = timestamp(args.destination / "last-success-utc")
-    failure = timestamp(args.destination / "last-failure-utc")
+    destination = args.destination
+    if destination is None:
+        config = Path(__file__).resolve().parent.parent / ".private-backups/backup-schedule.env"
+        if not config.is_file():
+            print("FAIL: Backup schedule configuration is missing.")
+            return 1
+        for line in config.read_text().splitlines():
+            if line.startswith("BACKUP_DESTINATION="):
+                value = shlex.split(line.split("=", 1)[1])
+                destination = Path(value[0]) if len(value) == 1 else None
+                break
+        if destination is None:
+            print("FAIL: Backup destination is missing from the schedule.")
+            return 1
+
+    success = timestamp(destination / "last-success-utc")
+    failure = timestamp(destination / "last-failure-utc")
     if success is None:
         print("FAIL: No valid successful backup marker. Run the backup and verify its cloud copy.")
         return 1

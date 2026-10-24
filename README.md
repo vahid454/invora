@@ -14,6 +14,8 @@ For shop operators, read [daily flow, ledger direction, data storage and securit
 
 For Mac, use **`Invora-Mac.dmg`** with its native **Invora.app** launcher; see [Mac installation](docs/macos-installation.md). It supports Apple silicon and Intel builds. Hosted connection does not use Docker; local mode still requires it. Read [where data is stored, security limits and backups](docs/data-storage-security.md) before installing a customer shop.
 
+This Mac's local shop has a 9 PM encrypted backup schedule to a visible host folder and private Backblaze bucket. Enable the owner-held recovery password once to add single-file `.invora` backups; the Mac and Windows recovery readers can verify and prepare that file without separate key files. See [backup setup and the limits of device migration](docs/offsite-backups.md).
+
 Windows releases include **Check Invora** for read-only startup diagnostics and a report without secret values or shop records. Target-PC installation and hardware results belong in the [Windows acceptance record](docs/windows-acceptance.md).
 
 ## Run the complete application

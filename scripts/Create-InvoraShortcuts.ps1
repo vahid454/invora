@@ -10,3 +10,10 @@ foreach ($item in @(@('Start Invora', 'Start-Invora.cmd'), @('Stop Invora', 'Sto
     $shortcut.Description = 'Invora local shop application'
     $shortcut.Save()
 }
+if (Test-Path (Join-Path $InstallDirectory 'desktop/Invora.Recovery.exe')) {
+    $shortcut = $invoraShell.CreateShortcut((Join-Path $invoraDesktop 'Prepare Invora Recovery.lnk'))
+    $shortcut.TargetPath = Join-Path $InstallDirectory 'desktop/Invora.Recovery.exe'
+    $shortcut.WorkingDirectory = $InstallDirectory
+    $shortcut.Description = 'Verify and prepare a password-protected Invora backup'
+    $shortcut.Save()
+}

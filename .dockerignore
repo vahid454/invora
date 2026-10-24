@@ -11,4 +11,9 @@ artifacts
 
 .vendor-private
 .private-backups
+**/*.invora
+**/*.backup
+**/*.dump
+**/*.pem
+**/*.key
 **/*.license

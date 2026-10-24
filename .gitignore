@@ -6,6 +6,7 @@ node_modules/
 !.env.example
 *.dump
 *.backup
+*.invora
 artifacts/
 .vs/
 .DS_Store

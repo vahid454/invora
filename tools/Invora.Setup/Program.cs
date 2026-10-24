@@ -99,7 +99,7 @@ static List<ZipArchiveEntry> Validate(ZipArchive archive)
     foreach(var entry in archive.Entries.Where(x=>x.FullName!="release-sha256.txt"))
     {
         var path=entry.FullName;total+=entry.Length;
-        var maxFileSize=path=="desktop/Invora.Desktop.exe"?160000000:32000000;
+        var maxFileSize=path is "desktop/Invora.Desktop.exe" or "desktop/Invora.Recovery.exe"?160000000:32000000;
         if(path.Contains('\\')||path.Contains(':')||path.StartsWith('/')||path.Split('/').Any(part=>part is "" or "." or "..")||path.Split('/').Any(part=>part.Equals(".vendor-private",StringComparison.OrdinalIgnoreCase)||part.Equals(".private-backups",StringComparison.OrdinalIgnoreCase))||(Path.GetFileName(path).StartsWith(".env",StringComparison.OrdinalIgnoreCase)&&!Path.GetFileName(path).Equals(".env.example",StringComparison.OrdinalIgnoreCase))||Path.GetExtension(path).Equals(".license",StringComparison.OrdinalIgnoreCase)||entry.Length>maxFileSize||total>512000000||((entry.ExternalAttributes>>16)&0xF000)==0xA000)throw new InvalidDataException("Unsafe release entry.");
         if(!expected.Remove(path,out var digest))throw new InvalidDataException("Unexpected or duplicate release file.");
         using var stream=entry.Open();if(!Convert.ToHexString(SHA256.HashData(stream)).Equals(digest,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("Release file hash differs: "+path);files.Add(entry);

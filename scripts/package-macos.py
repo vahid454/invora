@@ -53,6 +53,13 @@ def main():
             '-o', OUT / f'Invora-{arch}')
     run(*([lipo, 'lipo'] if lipo == 'xcrun' else [lipo]), '-create', OUT / 'Invora-arm64', OUT / 'Invora-x86_64', '-output', APP / 'Contents/MacOS/Invora')
     (APP / 'Contents/MacOS/Invora').chmod(0o755)
+    for arch in ('arm64', 'x86_64'):
+        run(*swiftc, '-O', '-swift-version', '5', *sdk_args, '-target', f'{arch}-apple-macos14.0',
+            '-module-cache-path', OUT / 'swift-module-cache',
+            ROOT / 'tools/Invora.Mac/PortableRecovery.swift', '-o', OUT / f'InvoraPortableRecovery-{arch}')
+    helper = APP / 'Contents/MacOS/InvoraPortableRecovery'
+    run(*([lipo, 'lipo'] if lipo == 'xcrun' else [lipo]), '-create', OUT / 'InvoraPortableRecovery-arm64', OUT / 'InvoraPortableRecovery-x86_64', '-output', helper)
+    helper.chmod(0o755)
     icon_file = os.environ.get('INVORA_ICON_FILE')
     if icon_file:
         shutil.copyfile(icon_file, RESOURCES / 'Invora.icns')
@@ -63,7 +70,7 @@ def main():
     with (APP / 'Contents/Info.plist').open('wb') as f:
         plistlib.dump({'CFBundleExecutable': 'Invora', 'CFBundleIdentifier': 'app.invora.shop',
                       'CFBundleName': 'Invora', 'CFBundleDisplayName': 'Invora', 'CFBundlePackageType': 'APPL',
-                      'CFBundleShortVersionString': '1.3.9', 'CFBundleVersion': '20261023.1',
+                      'CFBundleShortVersionString': '1.3.10', 'CFBundleVersion': '20261024.1',
                       'LSMinimumSystemVersion': '14.0', 'NSHighResolutionCapable': True, 'CFBundleIconFile': 'Invora.icns',
                       'NSPrincipalClass': 'NSApplication'}, f)
     guide = ROOT / 'tools/Invora.Mac/Install Invora.html'
@@ -71,6 +78,7 @@ def main():
     shutil.copyfile(guide, STAGE / guide.name)
     os.symlink('/Applications', STAGE / 'Applications')
     # Ad-hoc signing checks integrity locally; not a Developer ID / notarized release.
+    run('/usr/bin/codesign', '--force', '--sign', '-', '--timestamp=none', helper)
     run('/usr/bin/codesign', '--force', '--sign', '-', '--timestamp=none', APP)
     run('/usr/bin/codesign', '--verify', '--deep', '--strict', APP)
     run(APP / 'Contents/MacOS/Invora', '--verify-release')
