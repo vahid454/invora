@@ -8,8 +8,8 @@ For a few entries, choose **Add existing due**. Find the customer by either phon
 
 - A unique register / old invoice reference for this branch, such as `REGISTER-2026-001`.
 - The amount **still owed to your shop**, after all earlier receipts.
-- Original sale/register date, promised payment date, and the phone model or reason.
-- Optionally, the finance company or application reference.
+- Original sale/register date and the phone model or reason. Leave the promised/due date blank when no date was agreed.
+- Optionally, the finance company or application reference and the name and phone of the person accompanying the customer. This person is a reference contact, not another debtor or reminder recipient.
 
 Example: the customer still owes ₹5,000 of a phone down payment. Record ₹5,000, even if the phone originally cost ₹40,000. Receiving ₹2,000 later leaves ₹3,000 to collect.
 
@@ -22,7 +22,7 @@ The finance reference on an imported old due is a note, not a lender account. Re
 ## Import many entries from Excel
 
 1. Choose **Import register → Download CSV template**, or use [the blank template](templates/existing-dues.csv).
-2. Fill one row per unpaid entry and save as CSV. Use plain amounts (`5000.50`) and dates in `yyyy-MM-dd` format. Preserve phone columns as text. Keep all nine headers, even when optional cells are empty.
+2. Fill one row per unpaid entry and save as CSV. Use plain amounts (`5000.50`) and dates in `yyyy-MM-dd` format. Preserve phone columns as text. Keep the template headers, even when optional cells are empty. Older nine-column files remain accepted.
 3. Upload the file or paste its contents. Choose **Validate & preview**. The preview shows every entry, customer match and total; errors identify the CSV row.
 4. Check the customers, references and remaining amounts. Confirm that the entries are not already recorded, then import.
 
@@ -36,9 +36,11 @@ The finance reference on an imported old due is a note, not a lender account. Re
 | `financeReference` | Optional company/application reference; information only |
 | `amount` | Currently unpaid amount owed to the shop, maximum two decimal places |
 | `originalDate` | Original sale/register date, between 2000-01-01 and today |
-| `dueDate` | Promised/due date, not earlier than the original date |
+| `dueDate` | Optional promised/due date; if supplied, not earlier than the original date |
+| `companionName` | Optional name of the person who accompanied the debtor; reference only |
+| `companionPhone` | Optional phone of that person; enter both companion fields or neither |
 
-Use up to **500 rows and 1 MB per file**. Several entries can belong to the same customer. The importer checks both phone numbers, refuses ambiguous matches, requires matching names, and refuses to silently discard a new alternate number on an existing contact. Correct the customer first and validate again when necessary.
+Use up to **500 rows and 1 MB per file**. Several entries can belong to the same customer. The importer checks the debtor's phone numbers, refuses ambiguous matches, requires matching names, and refuses to silently discard a new alternate number on an existing contact. The companion is attached only to that old-due entry: Invora does not create a second debtor, add the companion to the customer's reminder recipients, or shift any balance to them. Correct the customer first and validate again when necessary. A blank due date means no date was agreed; it does not remove the amount owed or the original transaction date.
 
 The preview is tied to the employee who reviewed it and expires after one day. Commit rechecks contacts and references and imports the entire file in one transaction. If any row becomes invalid, nothing from that commit is saved. Retrying the same request does not duplicate it; repeating a committed reference is rejected. Cancelled references stay reserved for audit history.
 
@@ -52,7 +54,7 @@ Use **Receive** beside the entry. It opens the usual payment form with that due 
 - Advance / money on account deliberately leaves the receipt unallocated. **Apply existing receipts** in Collections applies eligible existing receipts to oldest dues without creating another payment. Up to 200 allocations are made per action; repeat if necessary.
 - Reversing a receipt restores the amount owed. Refunds continue to use available account credit and the existing payment controls.
 
-**Promise / notes** records a date for this entry, with shortcuts for 10, 20 or 30 days from today. Add a call/reminder note or next contact date. Earlier promises remain in history; clearing a promise restores the original due date for collection filtering. Account-level promises are available from **Promise / remind** on the customer row; per-entry promises remain attached to the specific invoice or old due. A promise never records money received.
+**Promise / notes** records a date only when the customer has made a specific payment promise, with shortcuts for 10, 20 or 30 days from today. Use **Account note** for a conversation without a promised date; the next contact date is optional. Earlier promises remain in history; clearing a promise restores the original due date, if any, for collection filtering. Account-level promises are available from **Promise / remind** on the customer row; per-entry promises remain attached to the specific invoice or old due. A promise never records money received.
 
 Use **Correct entry** to cancel a mistaken opening due with a reasoned ledger reversal, then create the corrected entry with a new reference. Entries with allocated receipts must have those receipts reversed first. This is a correction workflow, not a debt write-off or a refund. Original entries are retained.
 

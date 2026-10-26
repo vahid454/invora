@@ -63,10 +63,10 @@ public sealed record QuickAccessoryProduct(string Name, decimal? SellingPrice, s
 public sealed record QuickAccessoryRequest(Guid BranchId, int Quantity, decimal? UnitCost, Guid? ProductVariantId = null, QuickAccessoryProduct? Product = null, bool RememberBilling = false);
 public sealed record QuickAccessoryResult(ProductView Product, int QuantityAdded, int OnHand);
 
-public sealed record ExistingDueRequest(Guid BranchId, Guid CustomerId, string Reference, string Description, string FinanceReference, decimal Amount, DateOnly BusinessDate, DateOnly DueDate);
+public sealed record ExistingDueRequest(Guid BranchId, Guid CustomerId, string Reference, string Description, string FinanceReference, decimal Amount, DateOnly BusinessDate, DateOnly? DueDate, string CompanionName = "", string CompanionPhone = "");
 public sealed record ExistingDueImportRequest(Guid BranchId, string Csv);
-public sealed record ExistingDueImportRow(string Name, string Phone, string AlternatePhone, string Reference, string Description, string FinanceReference, decimal Amount, DateOnly BusinessDate, DateOnly DueDate, Guid? CustomerId);
-public sealed record CollectionRow(Guid Id, string Kind, Guid CustomerId, string CustomerName, string Phone, string AlternatePhone, string Reference, string Description, string FinanceReference, DateOnly BusinessDate, DateOnly? DueDate, decimal Amount, decimal Paid, decimal Outstanding, decimal AccountBalance, decimal UnallocatedCredit, bool Cancelled, DateOnly? PromiseDate, DateOnly? NextContactDate, string SafetyStatus = "Clear");
+public sealed record ExistingDueImportRow(string Name, string Phone, string AlternatePhone, string Reference, string Description, string FinanceReference, decimal Amount, DateOnly BusinessDate, DateOnly? DueDate, Guid? CustomerId, string CompanionName = "", string CompanionPhone = "");
+public sealed record CollectionRow(Guid Id, string Kind, Guid CustomerId, string CustomerName, string Phone, string AlternatePhone, string Reference, string Description, string FinanceReference, DateOnly BusinessDate, DateOnly? DueDate, decimal Amount, decimal Paid, decimal Outstanding, decimal AccountBalance, decimal UnallocatedCredit, bool Cancelled, DateOnly? PromiseDate, DateOnly? NextContactDate, string SafetyStatus = "Clear", string CompanionName = "", string CompanionPhone = "");
 
 public sealed record AllocateCustomerCreditRequest(Guid BranchId, Guid CustomerId);
 

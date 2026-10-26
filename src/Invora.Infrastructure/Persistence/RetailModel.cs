@@ -17,7 +17,10 @@ internal static class RetailModel
         Fk<ExistingDue,Branch>(m,x=>x.BranchId);Fk<ExistingDue,Party>(m,x=>x.CustomerId);
         m.Entity<ExistingDue>().HasIndex(x=>new{x.BranchId,x.Reference}).IsUnique();
         m.Entity<ExistingDue>().HasIndex(x=>new{x.BranchId,x.CustomerId,x.DueDate});
-        m.Entity<ExistingDue>().ToTable("ExistingDue",t=>t.HasCheckConstraint("CK_ExistingDue_Amount","\"Amount\" > 0 AND \"DueDate\" >= \"BusinessDate\""));
+        m.Entity<ExistingDue>().ToTable("ExistingDue",t=>{
+            t.HasCheckConstraint("CK_ExistingDue_Amount","\"Amount\" > 0 AND (\"DueDate\" IS NULL OR \"DueDate\" >= \"BusinessDate\")");
+            t.HasCheckConstraint("CK_ExistingDue_Companion","(\"CompanionName\" = '' AND \"CompanionPhone\" = '') OR (\"CompanionName\" <> '' AND \"CompanionPhone\" <> '')");
+        });
         Fk<PaymentAllocation,ExistingDue>(m,x=>x.ExistingDueId);Fk<LedgerEntry,ExistingDue>(m,x=>x.ExistingDueId);
         Fk<PaymentFollowUp,ExistingDue>(m,x=>x.ExistingDueId);Fk<PaymentFollowUp,Sale>(m,x=>x.SaleId);
         m.Entity<PaymentFollowUp>().ToTable("PaymentFollowUp",t=>t.HasCheckConstraint("CK_FollowUp_Target","num_nonnulls(\"SaleId\", \"ExistingDueId\") <= 1"));

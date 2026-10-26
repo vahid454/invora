@@ -63,7 +63,9 @@ public sealed class ExistingDue : Entity {
     public string Reference { get; set; } = "";
     public string Description { get; set; } = "";
     public string FinanceReference { get; set; } = "";
+    public string CompanionName { get; set; } = "";
+    public string CompanionPhone { get; set; } = "";
     public decimal Amount { get; set; }
     public DateOnly BusinessDate { get; set; }
-    public DateOnly DueDate { get; set; }
+    public DateOnly? DueDate { get; set; }
 }

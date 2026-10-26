@@ -115,7 +115,7 @@ public sealed class ReportService(RetailOperations r,InventoryValuationService v
         });
         var rows=accounts.Select(x=>{
             var items=grouped.GetValueOrDefault(x.Id)??[];
-            var sources=items.Select(d=>new RegisterOrigin(d.BusinessDate,d.Kind=="invoice"?"Invoice":"Old due",d.Reference,d.Kind=="invoice"?descriptions.GetValueOrDefault(d.Id,""):d.Description,d.Outstanding))
+            var sources=items.Select(d=>new RegisterOrigin(d.BusinessDate,d.Kind=="invoice"?"Invoice":"Old due",d.Reference,d.Kind=="invoice"?descriptions.GetValueOrDefault(d.Id,""):d.Description+(d.SafetyStatus=="Clear"&&d.CompanionName.Length>0?" · With: "+d.CompanionName+" "+d.CompanionPhone+" (reference only)":""),d.Outstanding))
                 .Concat(independent.GetValueOrDefault(x.Id)??[]).OrderBy(d=>d.Date).ThenBy(d=>d.Source).ThenBy(d=>d.Reference).ToArray();
             return x with{Origins=sources,OpenDocumentCount=items.Length,OpenDocumentTotal=items.Sum(d=>d.Outstanding),NextDocumentDue=items.Select(d=>d.PromiseDate??d.DueDate).Where(d=>d.HasValue).Min(),NextDocumentContact=items.Select(d=>d.NextContactDate).Where(d=>d.HasValue).Min()};
         }).ToArray();

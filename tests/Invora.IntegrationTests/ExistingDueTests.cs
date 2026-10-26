@@ -71,6 +71,34 @@ public sealed partial class RetailApiTests
         await using var scope=factory.Services.CreateAsyncScope();var db=scope.ServiceProvider.GetRequiredService<InvoraDbContext>();Assert.Equal(3,await db.Set<ExistingDue>().CountAsync());Assert.Equal(2,await db.Set<Party>().CountAsync(x=>x.Kind==PartyKind.Customer));Assert.Equal("9000000089",(await db.Set<Party>().SingleAsync(x=>x.Phone=="9000000088")).AlternatePhone);Assert.Empty(await db.Set<Payment>().ToArrayAsync());
         var duplicate=await ImportPreview("Customer,9000000002,,LEGACY-A,Again,,2500.25,2026-09-01,2026-10-20");Assert.Equal("Invalid",duplicate.GetProperty("status").GetString());
     }
+    [Fact] public async Task UndatedRegisterDueKeepsCompanionAsReferenceContactOnly()
+    {
+        var request=new ExistingDueRequest(branch,customer,"UNDATED-1","Phone down payment","",1400,date.AddDays(-20),null,"Aman Bhai","9000000044");
+        var id=await Id("/lenden/existing-dues",request);
+        var report=await Collections();var row=Assert.Single(report.GetProperty("items").EnumerateArray());
+        Assert.Equal(id,row.GetProperty("id").GetGuid());Assert.Equal(JsonValueKind.Null,row.GetProperty("dueDate").ValueKind);
+        Assert.Equal("Aman Bhai",row.GetProperty("companionName").GetString());Assert.Equal("9000000044",row.GetProperty("companionPhone").GetString());
+        Assert.Equal(1400,report.GetProperty("totalOutstanding").Amount());
+        var byCompanion=await Collections("&search=9000000044");Assert.Equal(1,byCompanion.GetProperty("totalItems").GetInt32());
+        var csv=await client.GetStringAsync($"/api/v1/lenden/collections/export?branchId={branch}&status=all");Assert.Contains("Aman Bhai",csv);Assert.Contains("9000000044",csv);
+        var reminder=await client.GetFromJsonAsync<JsonElement>($"/api/v1/lenden/collections/{customer}/reminder?branchId={branch}");
+        Assert.Equal("9000000002",reminder.GetProperty("phone").GetString());Assert.DoesNotContain("9000000044",reminder.GetProperty("message").GetString());Assert.DoesNotContain("due ",reminder.GetProperty("message").GetString());
+        Assert.False((await Post("/lenden/existing-dues",request with{Reference="BAD-ONE",CompanionPhone=""})).IsSuccessStatusCode);
+        Assert.False((await Post("/lenden/existing-dues",request with{Reference="BAD-SAME",CompanionPhone="9000000002"})).IsSuccessStatusCode);
+    }
+    [Fact] public async Task CsvImportAcceptsUndatedRowsAndCompanionWithoutCreatingAnotherDebtor()
+    {
+        var preview=await ImportPreview("New buyer,9000000071,,UNDATED-CSV,Old phone,,750,2026-09-01,,Friend at sale,9000000072");
+        Assert.Equal("Invalid",preview.GetProperty("status").GetString()); // Nine-column helper rejects accidental extra cells.
+        var csv="name,phone,alternatePhone,reference,description,financeReference,amount,originalDate,dueDate,companionName,companionPhone\nNew buyer,9000000071,,UNDATED-CSV,Old phone,,750,2026-09-01,,Friend at sale,9000000072";
+        var validated=await Post("/lenden/imports/validate",new ExistingDueImportRequest(branch,csv));validated.EnsureSuccessStatusCode();var result=await validated.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Validated",result.GetProperty("status").GetString());Assert.Equal(JsonValueKind.Null,result.GetProperty("preview")[0].GetProperty("dueDate").ValueKind);
+        var committed=await Post($"/lenden/imports/{result.GetProperty("id").GetGuid()}/commit",new{});committed.EnsureSuccessStatusCode();
+        await using var scope=factory.Services.CreateAsyncScope();var db=scope.ServiceProvider.GetRequiredService<InvoraDbContext>();
+        var due=Assert.Single(await db.Set<ExistingDue>().ToArrayAsync());Assert.Null(due.DueDate);Assert.Equal("Friend at sale",due.CompanionName);
+        var buyer=Assert.Single(await db.Set<Party>().Where(x=>x.Kind==PartyKind.Customer&&x.Phone=="9000000071").ToArrayAsync());
+        Assert.Equal(buyer.Id,due.CustomerId);Assert.False(await db.Set<Party>().AnyAsync(x=>x.Phone=="9000000072"));
+    }
     [Fact] public async Task ImportPreviewReplayKeepsTheSameJsonContractAndReviewedRows()
     {
         var request=new ExistingDueImportRequest(branch,"name,phone,alternatePhone,reference,description,financeReference,amount,originalDate,dueDate\nCustomer,9000000002,,RETRY-1,Phone,,100.50,2026-09-01,2026-10-20");var key=Guid.NewGuid().ToString();

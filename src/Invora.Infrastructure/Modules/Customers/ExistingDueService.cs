@@ -28,7 +28,10 @@ public sealed class ExistingDueService(RetailOperations r, PartyService parties)
         RetailOperations.Check(request.FinanceReference.Length <= 200, "Finance reference must fit within 200 characters.");
         RetailOperations.Money(request.Amount, true);
         RetailOperations.Check(request.BusinessDate <= await r.TodayAsync(ct) && request.BusinessDate >= new DateOnly(2000,1,1), "Original date must be between 2000 and today.");
-        RetailOperations.Check(request.DueDate >= request.BusinessDate, "Promise / due date cannot precede the original date.");
+        RetailOperations.Check(request.DueDate is null || request.DueDate >= request.BusinessDate, "Promise / due date cannot precede the original date.");
+        var companionName=(request.CompanionName??"").Trim();var companionPhone=Phone(request.CompanionPhone??"",true);
+        RetailOperations.Check((companionName.Length==0)==(companionPhone.Length==0),"Enter both the companion's name and phone, or leave both blank.");
+        RetailOperations.Check(companionName.Length<=200,"Companion name must fit within 200 characters.");
         var reference = request.Reference.Trim().ToUpperInvariant();
         RetailOperations.Check(!await r.Db.Set<ExistingDue>().AnyAsync(x => x.BranchId == request.BranchId && x.Reference == reference, ct), "This register reference already exists. Check the original entry; do not import it twice.", "DUPLICATE_EXISTING_DUE");
         RetailOperations.Check(!await r.Db.Set<Sale>().AnyAsync(x => x.BranchId == request.BranchId && (x.Number.ToUpper() == reference || x.Reference.ToUpper() == reference), ct), "This invoice is already in Invora. Use its existing invoice due instead of bringing it forward again.");
@@ -36,9 +39,12 @@ public sealed class ExistingDueService(RetailOperations r, PartyService parties)
     private async Task<Guid> CreateInternalAsync(ExistingDueRequest request, CancellationToken ct)
     {
         await ValidateAsync(request, ct);
-        await r.PartyAsync(request.CustomerId, PartyKind.Customer, ct);
+        var customer=await r.PartyAsync(request.CustomerId, PartyKind.Customer, ct);
+        var companionPhone=Phone(request.CompanionPhone??"",true);
+        RetailOperations.Check(companionPhone.Length==0||companionPhone!=Phone(customer.Phone)&&companionPhone!=Phone(customer.AlternatePhone,true),"Companion phone must differ from the main customer's phone numbers.");
         var due = new ExistingDue { BranchId=request.BranchId, CustomerId=request.CustomerId, ActorId=r.Actor,
             Reference=request.Reference.Trim().ToUpperInvariant(), Description=request.Description.Trim(), FinanceReference=request.FinanceReference.Trim(),
+            CompanionName=(request.CompanionName??"").Trim(), CompanionPhone=companionPhone,
             Amount=request.Amount, BusinessDate=request.BusinessDate, DueDate=request.DueDate };
         r.Db.Add(due);
         r.Ledger(due.BranchId, due.CustomerId, await r.TodayAsync(ct), "OpeningDue", due.Amount, 0,
@@ -85,7 +91,8 @@ public sealed class ExistingDueService(RetailOperations r, PartyService parties)
             var csv=ImportService.Parse(request.Csv);RetailOperations.Check(csv.Count is >1 and <=501,"Use a header and 1–500 records per import.");
             var headers=csv[0].Select(x=>x.Trim().TrimStart('\uFEFF')).ToArray();
             var required=new[]{"name","phone","alternatePhone","reference","description","financeReference","amount","originalDate","dueDate"};
-            RetailOperations.Check(headers.Length==required.Length && headers.Distinct().Count()==headers.Length && required.All(headers.Contains),"Use the provided template columns exactly.");
+            var companionColumns=new[]{"companionName","companionPhone"};
+            RetailOperations.Check((headers.Length==required.Length||headers.Length==required.Length+2) && headers.Distinct().Count()==headers.Length && required.All(headers.Contains) && (headers.Length==required.Length||companionColumns.All(headers.Contains)),"Use the provided template columns; companionName and companionPhone must be added together.");
             var customers=await r.Db.Set<Party>().Where(x=>x.Kind==PartyKind.Customer).ToListAsync(ct);
             var virtualCustomers=new List<Party>(customers);
             var records=new List<ExistingDueImportRow>();var errors=new List<ExistingDueImportError>();var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -97,8 +104,11 @@ public sealed class ExistingDueService(RetailOperations r, PartyService parties)
                 RetailOperations.Check(alternate.Length==0||alternate!=phone,"Use two different phone numbers.");
                 var amount=decimal.Parse(cells["amount"],NumberStyles.AllowDecimalPoint,CultureInfo.InvariantCulture);
                 DateOnly Date(string column)=>DateOnly.ParseExact(cells[column],"yyyy-MM-dd",CultureInfo.InvariantCulture);
-                var row=new ExistingDueImportRow(cells["name"],phone,alternate,cells["reference"].ToUpperInvariant(),cells["description"],cells["financeReference"],amount,Date("originalDate"),Date("dueDate"),null);
-                await ValidateAsync(new(request.BranchId,Guid.Empty,row.Reference,row.Description,row.FinanceReference,row.Amount,row.BusinessDate,row.DueDate),ct);
+                var companionName=cells.GetValueOrDefault("companionName","").Trim();var companionPhone=Phone(cells.GetValueOrDefault("companionPhone",""),true);
+                RetailOperations.Check(companionPhone.Length==0||companionPhone!=phone&&companionPhone!=alternate,"Companion phone must differ from the main customer's phone numbers.");
+                var dueDate=cells["dueDate"].Length==0?(DateOnly?)null:Date("dueDate");
+                var row=new ExistingDueImportRow(cells["name"],phone,alternate,cells["reference"].ToUpperInvariant(),cells["description"],cells["financeReference"],amount,Date("originalDate"),dueDate,null,companionName,companionPhone);
+                await ValidateAsync(new(request.BranchId,Guid.Empty,row.Reference,row.Description,row.FinanceReference,row.Amount,row.BusinessDate,row.DueDate,row.CompanionName,row.CompanionPhone),ct);
                 RetailOperations.Check(seen.Add(row.Reference),"Register reference repeats in this file.");
                 var match=Match(row,virtualCustomers);
                 row=row with{CustomerId=customers.Any(x=>x.Id==match?.Id)?match!.Id:null};
@@ -119,7 +129,7 @@ public sealed class ExistingDueService(RetailOperations r, PartyService parties)
                 var match=Match(row,customers);
                 RetailOperations.Check(row.CustomerId==match?.Id || row.CustomerId is null && match is not null && created.Contains(match.Id),"Customer matching changed after preview. Validate the file again.");
                 if(match is null){var customerId=await parties.CreateInternalAsync(PartyKind.Customer,new(row.Name,row.Phone,"","","","",null,row.AlternatePhone),ct);await r.Db.SaveChangesAsync(ct);match=await r.Db.Set<Party>().SingleAsync(x=>x.Id==customerId,ct);customers.Add(match);created.Add(customerId);}
-                await CreateInternalAsync(new(job.BranchId.Value,match.Id,row.Reference,row.Description,row.FinanceReference,row.Amount,row.BusinessDate,row.DueDate),ct);
+                await CreateInternalAsync(new(job.BranchId.Value,match.Id,row.Reference,row.Description,row.FinanceReference,row.Amount,row.BusinessDate,row.DueDate,row.CompanionName,row.CompanionPhone),ct);
             }
             job.Status="Committed";r.Audit("EXISTING_DUES_IMPORTED",job.Id,new{job.RowCount});return new(job.Id,job.Status,job.RowCount);
         },ct);

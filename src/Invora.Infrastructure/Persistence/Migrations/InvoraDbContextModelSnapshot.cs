@@ -641,6 +641,16 @@ namespace Invora.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly>("BusinessDate")
                         .HasColumnType("date");
 
+                    b.Property<string>("CompanionName")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("CompanionPhone")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -652,7 +662,7 @@ namespace Invora.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
-                    b.Property<DateOnly>("DueDate")
+                    b.Property<DateOnly?>("DueDate")
                         .HasColumnType("date");
 
                     b.Property<string>("FinanceReference")
@@ -680,7 +690,9 @@ namespace Invora.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ExistingDue", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ExistingDue_Amount", "\"Amount\" > 0 AND \"DueDate\" >= \"BusinessDate\"");
+                            t.HasCheckConstraint("CK_ExistingDue_Amount", "\"Amount\" > 0 AND (\"DueDate\" IS NULL OR \"DueDate\" >= \"BusinessDate\")");
+
+                            t.HasCheckConstraint("CK_ExistingDue_Companion", "(\"CompanionName\" = '' AND \"CompanionPhone\" = '') OR (\"CompanionName\" <> '' AND \"CompanionPhone\" <> '')");
                         });
                 });
 
