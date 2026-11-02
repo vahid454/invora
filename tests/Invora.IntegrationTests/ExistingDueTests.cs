@@ -138,7 +138,7 @@ public sealed partial class RetailApiTests
         var csv=await client.GetStringAsync($"/api/v1/lenden/accounts/export?branchId={branch}&filter=owed");
         Assert.Contains("Collection customer",csv);Assert.Contains("Customer",csv);Assert.Contains("9000000078",csv);
         Assert.Contains("3500.00",csv);Assert.Contains("4500.00",csv);Assert.Contains("8000.00",csv);
-        Assert.Contains("Open document total (reference only; do not add to Lena hai)",csv);
+        Assert.Contains("Open document total (reference only)",csv);
         Assert.Contains("16 Oct 2026",csv);
         var narrowed=await client.GetStringAsync($"/api/v1/lenden/accounts/export?branchId={branch}&filter=owed&search=9000000078");
         Assert.Contains("Collection customer",narrowed);Assert.DoesNotContain("3500.00",narrowed);

@@ -161,8 +161,8 @@ public sealed partial class RetailApiTests : IAsyncLifetime
     [Fact]public async Task LenDenFiltersKeepOpposingTradingAndIndependentBalancesVisible()
     {
         await Purchase([new(cable,1,100)]);await Sale(null,1,0);await Id("/lenden/entries",new LenDenRequest(branch,customer,"In",300,1,date,"","Independent money left with the shop"));
-        foreach(var filter in new[]{"owed","credit","trade"}){var report=await client.GetFromJsonAsync<JsonElement>($"/api/v1/lenden/accounts?branchId={branch}&filter={filter}&search=9000000002");Assert.Single(report.GetProperty("items").EnumerateArray());}
-        var independent=await client.GetFromJsonAsync<JsonElement>($"/api/v1/lenden/accounts?branchId={branch}&filter=independent&search=9000000002");Assert.Empty(independent.GetProperty("items").EnumerateArray());
+        var credit=await client.GetFromJsonAsync<JsonElement>($"/api/v1/lenden/accounts?branchId={branch}&filter=credit&search=9000000002");Assert.Single(credit.GetProperty("items").EnumerateArray());
+        foreach(var filter in new[]{"owed","trade","independent"}){var report=await client.GetFromJsonAsync<JsonElement>($"/api/v1/lenden/accounts?branchId={branch}&filter={filter}&search=9000000002");Assert.Empty(report.GetProperty("items").EnumerateArray());}
     }
     [Fact]public async Task OperationsReportIncludesReturnsOfEarlierSalesInSelectedPeriod()
     {
@@ -279,7 +279,7 @@ public sealed partial class RetailApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Conflict,(await Post("/payments",new PaymentRequest(branch,customer,1,1,date,"","Cannot refund independent deposit as invoice credit",[],true))).StatusCode);
         await using var scope=factory.Services.CreateAsyncScope();var db=scope.ServiceProvider.GetRequiredService<InvoraDbContext>();Assert.Equal(-100,await db.Set<LedgerEntry>().Where(x=>x.PartyId==customer && x.Kind.StartsWith("LenDen")).SumAsync(x=>x.Debit-x.Credit));Assert.Equal(1,await db.Set<PaymentAllocation>().CountAsync());
     }
-    [Fact]public async Task CustomerRegisterShowsBothDirectionsWithoutNettingSeparateAccounts()
+    [Fact]public async Task CustomerRegisterShowsOneNetLedgerAcrossSalesAndLenDen()
     {
         await Id("/lenden/existing-dues",new ExistingDueRequest(branch,customer,"OLD-DUE-SPLIT","Remaining shop down payment","",500,date,date.AddDays(10)));
         await Id("/lenden/entries",new LenDenRequest(branch,customer,"In",200,1,date,"","Money held independently for customer"));
@@ -287,8 +287,9 @@ public sealed partial class RetailApiTests : IAsyncLifetime
         var row=Assert.Single(report.GetProperty("items").EnumerateArray());
         Assert.Equal(500,decimal.Parse(row.GetProperty("tradeBalance").GetString()!,System.Globalization.CultureInfo.InvariantCulture));
         Assert.Equal(-200,decimal.Parse(row.GetProperty("independentBalance").GetString()!,System.Globalization.CultureInfo.InvariantCulture));
-        Assert.Equal(500,decimal.Parse(row.GetProperty("lenaHai").GetString()!,System.Globalization.CultureInfo.InvariantCulture));
-        Assert.Equal(200,decimal.Parse(row.GetProperty("denaHai").GetString()!,System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(300,decimal.Parse(row.GetProperty("netBalance").GetString()!,System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(300,decimal.Parse(row.GetProperty("lenaHai").GetString()!,System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(0,decimal.Parse(row.GetProperty("denaHai").GetString()!,System.Globalization.CultureInfo.InvariantCulture));
         var recent=await client.GetFromJsonAsync<JsonElement>($"/api/v1/customers/{customer}/ledger?branchId={branch}&recent=true&pageSize=1");
         Assert.Equal(2,recent.GetProperty("totalItems").GetInt32());
         Assert.Equal("LenDenReceived",Assert.Single(recent.GetProperty("items").EnumerateArray()).GetProperty("kind").GetString());

@@ -105,7 +105,7 @@ Stock dispatch has a source/destination branch guide, inline receiving-branch cr
 
 ## Counter usability update
 
-Sales and purchases now search contacts by phone/name and create/select contacts inline. A reusable product form handles mobile/electronics fields, inline tax setup and atomic product plus opening inventory. Serialized products can be selected from available branch devices without a scanner. LenDen has separate customer account balances and independent money-given/received entries, without fabricating invoices. Co-owner/manager and trusted staff templates are available. See [counter workflows](counter-workflows.md). Existing records and staff grants are preserved.
+Sales and purchases now search contacts by phone/name and create/select contacts inline. A reusable product form handles mobile/electronics fields, inline tax setup and atomic product plus opening inventory. Serialized products can be selected from available branch devices without a scanner. LenDen presents one signed customer ledger: give/unpaid increases the balance and receive/credit reduces it, while invoice and source details remain in the statement and exports. Co-owner/manager and trusted staff templates are available. See [counter workflows](counter-workflows.md). Existing records and staff grants are preserved.
 
 ## Mobile variants and shop organization
 

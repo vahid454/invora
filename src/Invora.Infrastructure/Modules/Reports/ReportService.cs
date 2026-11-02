@@ -10,9 +10,11 @@ public sealed record CustomerAccountRow(Guid Id,string Name,string Phone,string 
 {
     public string Address { get; init; } = "";
     public RegisterOrigin[] Origins { get; init; } = [];
-    public DateOnly? FirstOriginalDate=>Origins.Length==0?null:Origins.Min(x=>x.Date);
-    public decimal LenaHai=>Math.Max(0,TradeBalance)+Math.Max(0,IndependentBalance);
-    public decimal DenaHai=>Math.Max(0,-TradeBalance)+Math.Max(0,-IndependentBalance);
+    public DateOnly? OriginalDate { get; init; }
+    public DateOnly? FirstOriginalDate=>OriginalDate ?? (Origins.Length==0?null:Origins.Min(x=>x.Date));
+    public decimal NetBalance=>TradeBalance+IndependentBalance;
+    public decimal LenaHai=>Math.Max(0,NetBalance);
+    public decimal DenaHai=>Math.Max(0,-NetBalance);
     public DateOnly? NextDocumentDue { get; init; }
     public DateOnly? NextDocumentContact { get; init; }
     public decimal OpenDocumentTotal { get; init; }
@@ -34,18 +36,24 @@ public sealed class ReportService(RetailOperations r,InventoryValuationService v
         public DateOnly? NextContactDate { get; init; }
         public decimal TradeBalance { get; init; }
         public decimal IndependentBalance { get; init; }
+        public DateOnly? OriginalDate { get; init; }
     }
-    private IQueryable<AccountProjection> AccountQuery(Guid branch,string? search,string? filter,DateOnly today)
+    private IQueryable<AccountProjection> AccountQuery(Guid branch,string? search,string? filter,DateOnly today,DateOnly? originalFrom=null,DateOnly? originalTo=null,decimal? amountMin=null,decimal? amountMax=null)
     {
         var parties=r.Db.Set<Party>().AsNoTracking().Where(x=>x.Kind==PartyKind.Customer && x.IsActive);
         if(!string.IsNullOrWhiteSpace(search)){var term=search.Trim().ToUpperInvariant();var digits=new string(term.Where(char.IsAsciiDigit).ToArray());var local=digits.Length>=10?digits[^10..]:digits;parties=parties.Where(x=>x.Name.ToUpper().Contains(term)||x.Phone.Contains(term)||x.AlternatePhone.Contains(term)||(digits.Length>=3 && (x.Phone.Contains(digits)||x.AlternatePhone.Contains(digits)))||(local.Length>=10 && (x.Phone.Contains(local)||x.AlternatePhone.Contains(local))));}
-        var q=parties.Select(p=>new AccountProjection{Id=p.Id,Name=p.Name,Phone=p.Phone,AlternatePhone=p.AlternatePhone,Address=p.Address,PromiseDate=r.Db.Set<PaymentFollowUp>().Where(f=>f.CustomerId==p.Id&&f.BranchId==branch&&f.SaleId==null&&f.ExistingDueId==null&&(f.Kind=="Promise"||f.Kind=="ClearPromise")).OrderByDescending(f=>f.CreatedAtUtc).ThenByDescending(f=>f.Id).Select(f=>f.PromiseDate).FirstOrDefault(),NextContactDate=r.Db.Set<PaymentFollowUp>().Where(f=>f.CustomerId==p.Id&&f.BranchId==branch&&f.SaleId==null&&f.ExistingDueId==null).OrderByDescending(f=>f.CreatedAtUtc).ThenByDescending(f=>f.Id).Select(f=>f.NextContactDate).FirstOrDefault(),TradeBalance=r.Db.Set<LedgerEntry>().Where(e=>e.BranchId==branch && e.PartyId==p.Id && !e.Kind.StartsWith("LenDen")).Sum(e=>(decimal?)(e.Debit-e.Credit))??0,IndependentBalance=r.Db.Set<LedgerEntry>().Where(e=>e.BranchId==branch && e.PartyId==p.Id && e.Kind.StartsWith("LenDen")).Sum(e=>(decimal?)(e.Debit-e.Credit))??0});
-        return filter switch{"owed"=>q.Where(x=>x.TradeBalance>0||x.IndependentBalance>0),"credit"=>q.Where(x=>x.TradeBalance<0||x.IndependentBalance<0),"trade"=>q.Where(x=>x.TradeBalance>0),"independent"=>q.Where(x=>x.IndependentBalance>0),"promised"=>q.Where(x=>x.PromiseDate!=null&&(x.TradeBalance>0||x.IndependentBalance>0)),"followup"=>q.Where(x=>x.NextContactDate<=today||x.PromiseDate<=today&&(x.TradeBalance>0||x.IndependentBalance>0)),"missed"=>q.Where(x=>x.PromiseDate<today&&(x.TradeBalance>0||x.IndependentBalance>0)),_=>q};
+        var q=parties.Select(p=>new AccountProjection{Id=p.Id,Name=p.Name,Phone=p.Phone,AlternatePhone=p.AlternatePhone,Address=p.Address,OriginalDate=r.Db.Set<LedgerEntry>().Where(e=>e.BranchId==branch&&e.PartyId==p.Id).Min(e=>(DateOnly?)e.BusinessDate),PromiseDate=r.Db.Set<PaymentFollowUp>().Where(f=>f.CustomerId==p.Id&&f.BranchId==branch&&f.SaleId==null&&f.ExistingDueId==null&&(f.Kind=="Promise"||f.Kind=="ClearPromise")).OrderByDescending(f=>f.CreatedAtUtc).ThenByDescending(f=>f.Id).Select(f=>f.PromiseDate).FirstOrDefault(),NextContactDate=r.Db.Set<PaymentFollowUp>().Where(f=>f.CustomerId==p.Id&&f.BranchId==branch&&f.SaleId==null&&f.ExistingDueId==null).OrderByDescending(f=>f.CreatedAtUtc).ThenByDescending(f=>f.Id).Select(f=>f.NextContactDate).FirstOrDefault(),TradeBalance=r.Db.Set<LedgerEntry>().Where(e=>e.BranchId==branch && e.PartyId==p.Id && !e.Kind.StartsWith("LenDen")).Sum(e=>(decimal?)(e.Debit-e.Credit))??0,IndependentBalance=r.Db.Set<LedgerEntry>().Where(e=>e.BranchId==branch && e.PartyId==p.Id && e.Kind.StartsWith("LenDen")).Sum(e=>(decimal?)(e.Debit-e.Credit))??0});
+        q=filter switch{"owed"=>q.Where(x=>x.TradeBalance+x.IndependentBalance>0),"credit"=>q.Where(x=>x.TradeBalance+x.IndependentBalance<0),"trade"=>q.Where(x=>x.TradeBalance+x.IndependentBalance>0),"independent"=>q.Where(x=>x.TradeBalance+x.IndependentBalance>0),"promised"=>q.Where(x=>x.PromiseDate!=null&&x.TradeBalance+x.IndependentBalance>0),"followup"=>q.Where(x=>(x.NextContactDate<=today||x.PromiseDate<=today)&&(x.TradeBalance+x.IndependentBalance>0)),"missed"=>q.Where(x=>x.PromiseDate<today&&(x.TradeBalance+x.IndependentBalance>0)),_=>q};
+        if(originalFrom is not null) q=q.Where(x=>x.OriginalDate>=originalFrom);
+        if(originalTo is not null) q=q.Where(x=>x.OriginalDate<=originalTo);
+        if(amountMin is not null) q=q.Where(x=>Math.Abs(x.TradeBalance+x.IndependentBalance)>=amountMin);
+        if(amountMax is not null) q=q.Where(x=>Math.Abs(x.TradeBalance+x.IndependentBalance)<=amountMax);
+        return q;
     }
     private async Task<CustomerAccountRow[]> AccountRowsAsync(AccountProjection[] items,CancellationToken ct)
     {
         var safety=await CustomerSafetyService.StatusesAsync(r.Db,items.Select(x=>x.Id),ct);
-        return items.Select(x=>new CustomerAccountRow(x.Id,x.Name,x.Phone,x.AlternatePhone,x.PromiseDate,x.NextContactDate,x.TradeBalance,x.IndependentBalance,safety.GetValueOrDefault(x.Id,"Clear")){Address=x.Address}).ToArray();
+        return items.Select(x=>new CustomerAccountRow(x.Id,x.Name,x.Phone,x.AlternatePhone,x.PromiseDate,x.NextContactDate,x.TradeBalance,x.IndependentBalance,safety.GetValueOrDefault(x.Id,"Clear")){Address=x.Address,OriginalDate=x.OriginalDate}).ToArray();
     }
     public async Task<object> DashboardAsync(Guid branch,DateOnly? from,DateOnly? to,CancellationToken ct)
     {
@@ -71,11 +79,13 @@ public sealed class ReportService(RetailOperations r,InventoryValuationService v
         var financeAssigned=await r.Db.Set<LedgerEntry>().Where(x=>x.BranchId==branch&&(x.Kind=="FinanceAssigned"||x.Kind=="FinanceReturnReversal")).SumAsync(x=>x.Credit-x.Debit,ct);
         return new{from=start,to=end,grossSales=gross,creditNotes=credits,netSales=gross-credits,revenue,paymentsReceived=inAmount,paymentsPaid=outAmount,cashFlow=inAmount-outAmount-expenses,expenses,customerOutstanding=balances.Where(x=>x.Kind==PartyKind.Customer && x.Amount>0).Sum(x=>x.Amount),customerCredit=balances.Where(x=>x.Kind==PartyKind.Customer && x.Amount<0).Sum(x=>-x.Amount),financeAssigned,supplierPayable=balances.Where(x=>x.Kind==PartyKind.Supplier && x.Amount<0).Sum(x=>-x.Amount),supplierReceivable=balances.Where(x=>x.Kind==PartyKind.Supplier && x.Amount>0).Sum(x=>x.Amount),stockValue,stockPurchaseValue,grossProfit=r.Can("profit.view")?(decimal?)(revenue-cost):null,estimatedOperatingProfit=r.Can("profit.view")?(decimal?)(revenue-cost-expenses):null,stockDevices=await r.Db.Set<StockUnit>().CountAsync(x=>x.BranchId==branch && x.Status==DeviceStatus.InStock,ct),methods};
     }
-    public async Task<object> AccountsAsync(Guid branch,int page,int size,string? search,CancellationToken ct,string? filter=null)
+    public async Task<object> AccountsAsync(Guid branch,int page,int size,string? search,CancellationToken ct,string? filter=null,DateOnly? originalFrom=null,DateOnly? originalTo=null,decimal? amountMin=null,decimal? amountMax=null,string? sortBy=null,string? sortDirection=null)
     {
         await r.BranchAsync(branch,"customers.credit.view",ct);RetailOperations.Page(page,size);
-        var q=AccountQuery(branch,search,filter,await r.TodayAsync(ct));
-        var pageRows=await q.OrderBy(x=>x.Name).ThenBy(x=>x.Id).Skip((page-1)*size).Take(size).ToArrayAsync(ct);return new{items=await AccountRowsAsync(pageRows,ct),page,pageSize=size,totalItems=await q.LongCountAsync(ct)};
+        RetailOperations.Check(amountMin is null || amountMin>=0,"Minimum amount must be nonnegative.");RetailOperations.Check(amountMax is null || amountMax>=0,"Maximum amount must be nonnegative.");RetailOperations.Check(amountMin is null || amountMax is null || amountMin<=amountMax,"Minimum amount cannot exceed maximum amount.");
+        var q=AccountQuery(branch,search,filter,await r.TodayAsync(ct),originalFrom,originalTo,amountMin,amountMax);var desc=string.Equals(sortDirection,"desc",StringComparison.OrdinalIgnoreCase);
+        IQueryable<AccountProjection> ordered=sortBy?.ToLowerInvariant() switch {"originaldate" or "date"=>desc?q.OrderByDescending(x=>x.OriginalDate??DateOnly.MaxValue).ThenBy(x=>x.Name).ThenBy(x=>x.Id):q.OrderBy(x=>x.OriginalDate??DateOnly.MaxValue).ThenBy(x=>x.Name).ThenBy(x=>x.Id),"amount"=>desc?q.OrderByDescending(x=>Math.Abs(x.TradeBalance+x.IndependentBalance)).ThenBy(x=>x.Name).ThenBy(x=>x.Id):q.OrderBy(x=>Math.Abs(x.TradeBalance+x.IndependentBalance)).ThenBy(x=>x.Name).ThenBy(x=>x.Id),_=>desc?q.OrderByDescending(x=>x.Name).ThenBy(x=>x.Id):q.OrderBy(x=>x.Name).ThenBy(x=>x.Id)};
+        var pageRows=await ordered.Skip((page-1)*size).Take(size).ToArrayAsync(ct);return new{items=await AccountRowsAsync(pageRows,ct),page,pageSize=size,totalItems=await q.LongCountAsync(ct)};
     }
     public async Task<CustomerAccountRow> AccountAsync(Guid branch,Guid customerId,CancellationToken ct)
     {
