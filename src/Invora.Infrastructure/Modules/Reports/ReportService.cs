@@ -94,13 +94,15 @@ public sealed class ReportService(RetailOperations r,InventoryValuationService v
             ??throw new Invora.Domain.Common.DomainException("NOT_FOUND","Customer account not found.");
         return (await AccountRowsAsync([account],ct))[0];
     }
-    public async Task<CustomerRegisterReport> CustomerRegisterReportAsync(Guid branch,string? search,string? filter,CancellationToken ct)
+    public async Task<CustomerRegisterReport> CustomerRegisterReportAsync(Guid branch,string? search,string? filter,CancellationToken ct,DateOnly? originalFrom=null,DateOnly? originalTo=null,decimal? amountMin=null,decimal? amountMax=null,string? sortBy=null,string? sortDirection=null)
     {
         await r.BranchAsync(branch,"customers.credit.view",ct);await r.BranchAsync(branch,"reports.export",ct);
         await using var snapshot=await r.Db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead,ct);
-        var today=await r.TodayAsync(ct);var q=AccountQuery(branch,search,filter,today);
+        RetailOperations.Check(amountMin is null || amountMin>=0,"Minimum amount must be nonnegative.");RetailOperations.Check(amountMax is null || amountMax>=0,"Maximum amount must be nonnegative.");RetailOperations.Check(amountMin is null || amountMax is null || amountMin<=amountMax,"Minimum amount cannot exceed maximum amount.");
+        var today=await r.TodayAsync(ct);var q=AccountQuery(branch,search,filter,today,originalFrom,originalTo,amountMin,amountMax);
         RetailOperations.Check(await q.CountAsync(ct)<=20000,"Customer register exceeds 20,000 accounts. Narrow the customer search before exporting.");
-        var accounts=await AccountRowsAsync(await q.OrderBy(x=>x.Name).ThenBy(x=>x.Id).ToArrayAsync(ct),ct);
+        var desc=string.Equals(sortDirection,"desc",StringComparison.OrdinalIgnoreCase);IQueryable<AccountProjection> ordered=sortBy?.ToLowerInvariant() switch {"originaldate" or "date"=>desc?q.OrderByDescending(x=>x.OriginalDate??DateOnly.MaxValue).ThenBy(x=>x.Name).ThenBy(x=>x.Id):q.OrderBy(x=>x.OriginalDate??DateOnly.MaxValue).ThenBy(x=>x.Name).ThenBy(x=>x.Id),"amount"=>desc?q.OrderByDescending(x=>Math.Abs(x.TradeBalance+x.IndependentBalance)).ThenBy(x=>x.Name).ThenBy(x=>x.Id):q.OrderBy(x=>Math.Abs(x.TradeBalance+x.IndependentBalance)).ThenBy(x=>x.Name).ThenBy(x=>x.Id),_=>q.OrderBy(x=>x.Name).ThenBy(x=>x.Id)};
+        var accounts=await AccountRowsAsync(await ordered.ToArrayAsync(ct),ct);
         var documents=await collections.OpenRowsAsync(branch,ct);
         var grouped=documents.GroupBy(x=>x.CustomerId).ToDictionary(x=>x.Key,x=>x.ToArray());
         var accountIds=accounts.Select(x=>x.Id).ToArray();

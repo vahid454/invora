@@ -15,9 +15,9 @@ public sealed class CustomerRegisterExportService(ReportService reports)
     private static string Date(DateOnly? date)=>date?.ToString("dd MMM yyyy",CultureInfo.InvariantCulture)??"";
     private static string Origin(RegisterOrigin source)=>Date(source.Date)+" · "+source.Source+(string.IsNullOrWhiteSpace(source.Reference)?"":" · "+source.Reference)+(string.IsNullOrWhiteSpace(source.Description)?"":" · "+source.Description)+" · INR "+Money(source.Outstanding);
 
-    public async Task<byte[]> CsvAsync(Guid branch,string? search,string? filter,CancellationToken ct)
+    public async Task<byte[]> CsvAsync(Guid branch,string? search,string? filter,CancellationToken ct,DateOnly? originalFrom=null,DateOnly? originalTo=null,decimal? amountMin=null,decimal? amountMax=null,string? sortBy=null,string? sortDirection=null)
     {
-        var report=await reports.CustomerRegisterReportAsync(branch,search,filter,ct);
+        var report=await reports.CustomerRegisterReportAsync(branch,search,filter,ct,originalFrom,originalTo,amountMin,amountMax,sortBy,sortDirection);
         var rows=report.Rows.Select(x=>new[]{
             Date(report.AsOf),report.BranchName,x.Name,x.SafetyStatus=="Clear"?x.Phone:"",x.SafetyStatus=="Clear"?x.AlternatePhone:"",
             x.NetBalance>0?"Lena hai · customer pays shop":x.NetBalance<0?"Dena hai · shop owes / holds credit":"Settled",CsvAmount(Math.Abs(x.NetBalance)),
@@ -32,9 +32,9 @@ public sealed class CustomerRegisterExportService(ReportService reports)
         return ExportService.Rows(["As of","Branch","Customer","Phone","Second phone","Balance direction","Balance","Open invoice / old-due entries","Open document total (reference only)","Next due / promise","Next follow-up","Contact rule","Customer address","First original date","Original dates and sources"],rows);
     }
 
-    public async Task<byte[]> CallSheetPdfAsync(Guid branch,string? search,CancellationToken ct)
+    public async Task<byte[]> CallSheetPdfAsync(Guid branch,string? search,string? filter,CancellationToken ct,DateOnly? originalFrom=null,DateOnly? originalTo=null,decimal? amountMin=null,decimal? amountMax=null,string? sortBy=null,string? sortDirection=null)
     {
-        var report=await reports.CustomerRegisterReportAsync(branch,search,"owed",ct);
+        var report=await reports.CustomerRegisterReportAsync(branch,search,string.IsNullOrWhiteSpace(filter)?"owed":filter,ct,originalFrom,originalTo,amountMin,amountMax,sortBy,sortDirection);
         var callRows=report.Rows.Where(x=>x.LenaHai>0&&x.SafetyStatus=="Clear").OrderBy(x=>x.FirstOriginalDate??DateOnly.MaxValue).ThenBy(x=>x.Name).ThenBy(x=>x.Id).ToArray();
         var flagged=report.Rows.Where(x=>x.LenaHai>0&&x.SafetyStatus!="Clear").ToArray();
         PdfFonts.EnsureInitialized();
