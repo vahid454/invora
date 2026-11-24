@@ -142,3 +142,60 @@ button:disabled{cursor:not-allowed;opacity:.55}
 
 .counter-accessory-entry{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 18px}.trade-items .counter-accessory-entry{margin:16px 24px}.counter-accessory-entry .small{flex:1 1 230px}.counter-accessory-entry button{min-height:44px}@media(max-width:600px){.trade-items .counter-accessory-entry{margin:16px}.counter-accessory-entry .small{flex-basis:100%}}
 .inventory-add-actions{align-items:center;gap:12px;flex-wrap:wrap}.inventory-add-actions .text-link{padding:8px 4px}.badge.stock-sold{background:#e9ece9;color:#42534c;border:1px solid #ccd5cf}.badge.stock-alert{background:#fff0e6;color:#934b1f;border:1px solid #edc8aa}.badge.stock-transit{background:#e8f0f6;color:#365b78;border:1px solid #c5d6e4}
+
+.counter-tabs, .drawer-backdrop { display: none; }
+
+@media screen and (max-width: 760px) {
+  .app-shell {
+    --green: #5035b8;
+    --ink: #191a38;
+    --muted: #626379;
+    --paper: #f5f4fa;
+    --line: #deddeb;
+    --mint: #efecff;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .workspace { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .counter-tabs {
+    display: flex;
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 15;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    background: #fff;
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -4px 18px #2117400c;
+  }
+  .counter-tabs:empty { display: none; }
+  .counter-tabs a {
+    flex: 1;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 2px;
+    min-height: 48px;
+    border-radius: 12px;
+    color: #525369;
+    font-weight: 650;
+    font-size: 12px;
+  }
+  .counter-tabs span { font-size: 19px; line-height: 1; }
+  .counter-tabs .selected, .sidebar nav a.active { background: #eeebff; color: #432aa6; }
+  .drawer-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    border: 0;
+    background: #13132c66;
+  }
+  .sidebar nav { overflow-y: auto; min-height: 0; }
+  .sidebar:not(.open) { visibility: hidden; }
+  .topbar { background: #191833; color: white; }
+  .topbar .quiet { color: white; }
+  .app-shell .primary { background: #5237bd; color: white; min-height: 44px; }
+  .panel, .kpi { border-color: var(--line); box-shadow: 0 3px 14px #261c490a; }
+  .kpi-grid .kpi:first-child { background: #222044; color: white; }
+  .kpi-grid .kpi:first-child :is(p, small, h2) { color: #f4f2ff; }
+}
